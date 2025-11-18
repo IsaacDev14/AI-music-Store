@@ -1,6 +1,6 @@
 // src/pages/Compose/ChordStudio.tsx
 import React, { useState, useRef } from 'react';
-import { generateChordProgression } from '../../api/geminiService';
+import { aiApi } from '../../services//apiService';
 
 // Simple icons using Heroicons
 const SearchIcon = () => (
@@ -257,7 +257,7 @@ const ChordStudio: React.FC = () => {
     setProgression(null);
 
     try {
-      const result = await generateChordProgression({
+      const result = await aiApi.generateChordProgression({
         songQuery: search,
         simplify,
         helpPractice,
@@ -265,7 +265,7 @@ const ChordStudio: React.FC = () => {
       });
       setProgression(result);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "An unknown error occurred.");
+      setError(err instanceof Error ? err.message : "Failed to generate progression. Please try again.");
     } finally {
       setIsLoading(false);
     }
