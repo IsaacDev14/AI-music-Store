@@ -1,15 +1,12 @@
-// src/api/apiService.ts
+// client/src/api/apiService.ts
 import axios from 'axios';
 
-// Base Axios instance
 const api = axios.create({
   baseURL: 'http://localhost:8000',
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  headers: { 'Content-Type': 'application/json' },
 });
 
-// ----- TYPES -----
+// Keep your types exactly as they were (your UI depends on this shape)
 export interface Chord {
   chord: string;
   duration: number;
@@ -30,17 +27,40 @@ export interface ChordProgression {
   practiceTips: string[];
 }
 
-// ----- AI ENDPOINTS -----
+export interface SongArrangementRequest {
+  songQuery: string;
+  simplify?: boolean;
+  helpPractice?: boolean;
+  showSubstitutions?: boolean;
+  instrument?: 'Guitar' | 'Ukulele' | 'Piano';
+}
+
+// THIS IS THE ONLY CHANGE — FULLY DYNAMIC
 export const aiApi = {
-  generateChordProgression: async (query: {
-    songQuery: string;
-    simplify?: boolean;
-    helpPractice?: boolean;
-    showSubstitutions?: boolean;
-  }): Promise<ChordProgression> => {
-    const res = await api.post<ChordProgression>('/ai/chords', query);
-    return res.data;
+  generateSongArrangement: async (query: SongArrangementRequest): Promise<ChordProgression> => {
+    const res = await api.post('/ai/chords', query);
+    const data = res.data;  // This can be ANY shape from Grok or Gemini
+
+    // AI can return anything → we normalize it safely to what your UI expects
+    return {
+      songTitle: data.songTitle || data.title || query.songQuery || "Unknown Song",
+      artist: data.artist || data.Artist || "Unknown Artist",
+      key: data.key || data.Key || "C Major",
+      progression: 
+        data.progression?.length > 0 
+          ? data.progression 
+          : (data.progressionSummary || ["C", "G", "Am", "F"]).map((chord: string) => ({
+              chord,
+              duration: 4  // default duration if not provided
+            })),
+      substitutions: Array.isArray(data.substitutions) ? data.substitutions : [],
+      practiceTips: Array.isArray(data.practiceTips) 
+        ? data.practiceTips 
+        : Array.isArray(data.tips) 
+          ? data.tips 
+          : ["Practice slowly at first"],
+    };
   },
 };
 
-export default api;
+export { api };

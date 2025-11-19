@@ -1,21 +1,48 @@
-# app/routers/ai.py
+# server/app/routers/ai.py
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from app.api.grokService import grok_service      # ← NOW FIRST PRIORITY
 from app.api.geminiService import gemini_music_service
+from app.schemas import ChordProgressionRequest, FullSongArrangement
 
 router = APIRouter()
 
-class ChordRequest(BaseModel):
-    songQuery: str
-    simplify: bool = False
+@router.post("/chords", response_model=FullSongArrangement)
+async def generate_chords(request: ChordProgressionRequest):
+    """
+    Generate song arrangement
+    → Grok first (free, unlimited, fast)
+    → Falls back to Gemini only if Grok is down (rare)
+    """
+    print(f"Received request: '{request.songQuery}' → Trying Grok first (free & unlimited)")
 
-@router.post("/chords")
-async def generate_chords(request: ChordRequest):
-    """Generate chord progression for a song"""
+    # PRIORITY 1: Grok (free forever, no rate limits)
     try:
-        print(f"🎹 Received chord request for: {request.songQuery}")
-        result = await gemini_music_service.generateChordProgression(request)
-        return result
-    except Exception as e:
-        print(f"💥 Error in /chords endpoint: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        grok_raw = await grok_service.generate_song_arrangement(request)
+
+        # Normalize to match your frontend's expected format
+        normalized = {
+            "songTitle": grok_raw.get("songTitle", request.songQuery.title()),
+            "artist": grok_raw.get("artist", "Unknown Artist"),
+            "key": grok_raw.get("key", "C Major"),
+            "progression": grok_raw.get("progression", []),
+            "substitutions": grok_raw.get("substitutions", []),
+            "practiceTips": grok_raw.get("practiceTips", grok_raw.get("tips", [])),
+            **grok_raw  # safely pass through any extra data
+        }
+
+        print("Generated with Grok (free & fast)")
+        return normalized
+
+    except Exception as grok_error:
+        print(f"Grok unavailable ({str(grok_error)}), falling back to Gemini...")
+
+        # PRIORITY 2: Gemini (higher quality when quota allows)
+        try:
+            gemini_result = await gemini_music_service.generateSongArrangement(request)
+            print("Generated with Gemini (fallback)")
+            return gemini_result
+
+        except Exception as gemini_error:
+            error_msg = "All AI services currently unavailable. Please try again in a moment."
+            print(f"Both Grok and Gemini failed: {gemini_error}")
+            raise HTTPException(status_code=503, detail=error_msg)

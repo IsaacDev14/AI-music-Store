@@ -1,4 +1,4 @@
-# app/api/geminiService.py
+# server/services/gemini_service.py  (or wherever your file is)
 import google.generativeai as genai
 import os
 import logging
@@ -10,11 +10,15 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-# Get API key directly from environment
+# Get API key
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 # Configure logging
 logger = logging.getLogger(__name__)
+
+# --- Types (kept for compatibility) ---
+class FullSongArrangement(Dict[str, Any]):
+    pass
 
 class GeminiMusicService:
     """Service for interacting with Google's Gemini AI for music generation"""
@@ -25,7 +29,7 @@ class GeminiMusicService:
         self.available = False
         self.model_name = None
         
-        print(f"🔑 Initializing Gemini for Music Studio...")
+        print(f"Initializing Gemini for Music Studio...")
         print(f"   API Key present: {bool(self.api_key)}")
         
         if not self.api_key:
@@ -34,156 +38,147 @@ class GeminiMusicService:
         
         try:
             genai.configure(api_key=self.api_key)
-            print("✅ Gemini configured successfully")
+            print("Gemini configured successfully")
             
-            # Use only the working model we confirmed
-            working_model = 'models/gemini-2.0-flash'
+            # BEST FREE MODEL AS OF NOVEMBER 2025
+            # Huge free quota, fast, great at music/chords
+            working_model = 'gemini-2.5-flash'
             
-            try:
-                print(f"🔍 Initializing model: {working_model}")
-                self.model = genai.GenerativeModel(working_model)
+            print(f"Initializing model: {working_model}")
+            self.model = genai.GenerativeModel(
+                working_model,
+                generation_config={
+                    "temperature": 0.7,
+                    "top_p": 0.95,
+                    "top_k": 40,
+                    "max_output_tokens": 8192,
+                },
+                safety_settings=None  # Adjust if needed
+            )
+            
+            # Quick test
+            test_response = self.model.generate_content("Say 'ready' in one word.")
+            if test_response and test_response.text and "ready" in test_response.text.lower():
+                self.available = True
+                self.model_name = working_model
+                print(f"Successfully initialized with {working_model} — READY!")
+            else:
+                print(f"Unexpected response from {working_model}")
                 
-                # Test with a simple prompt
-                test_response = self.model.generate_content("Say 'Hello' in one word.")
-                if test_response and test_response.text:
-                    self.available = True
-                    self.model_name = working_model
-                    print(f"✅ Successfully initialized with {working_model}")
-                else:
-                    print(f"❌ No response from {working_model}")
-                    return
-                    
-            except Exception as model_error:
-                print(f"❌ {working_model} failed: {str(model_error)}")
-                return
-            
         except Exception as e:
-            logger.error(f"❌ Failed to initialize Gemini AI: {str(e)}")
-            print(f"❌ Gemini initialization failed: {str(e)}")
+            logger.error(f"Failed to initialize Gemini AI: {str(e)}")
+            print(f"Gemini initialization failed: {str(e)}")
 
-    async def generateChordProgression(self, request) -> Dict[str, Any]:
-        """Generate chord progression using Gemini AI"""
+    async def generateSongArrangement(self, request) -> FullSongArrangement:
         if not self.model or not self.available:
             error_msg = "Gemini AI service is currently unavailable"
-            print(f"❌ {error_msg}")
+            print(f"{error_msg}")
             raise Exception(error_msg)
         
-        prompt = self._build_chord_progression_prompt(request)
+        prompt = self._build_song_arrangement_prompt(request)
         
         try:
-            print(f"🎵 Generating chord progression for: '{request.songQuery}'")
-            print(f"📤 Using model: {self.model_name}")
+            print(f"Generating arrangement for: '{request.songQuery}' on {getattr(request, 'instrument', 'Guitar')}")
+            print(f"Using model: {self.model_name}")
             
             response = self.model.generate_content(prompt)
             
             if not response.text:
-                error_msg = "No response generated from Gemini AI"
-                print(f"❌ {error_msg}")
-                raise ValueError(error_msg)
+                raise ValueError("Empty response from Gemini")
             
-            print(f"📥 Raw Gemini response received")
-            
-            # Extract and parse JSON from response - NO FALLBACKS
-            result = self._parse_chord_progression_response(response.text)
-            print(f"✅ Successfully parsed chord progression")
+            print("Raw Gemini response received")
+            result = self._parse_song_arrangement_response(response.text)
+            print("Successfully parsed song arrangement")
             return result
             
         except Exception as e:
-            logger.error(f"Chord progression generation failed: {str(e)}")
-            print(f"💥 Error in generateChordProgression: {str(e)}")
+            logger.error(f"Song arrangement generation failed: {str(e)}")
+            print(f"Error in generateSongArrangement: {str(e)}")
             raise Exception(f"AI service error: {str(e)}")
 
-    def _build_chord_progression_prompt(self, request) -> str:
-        """Build prompt for chord progression generation"""
-        simplify_text = "Use only basic open chords (C, G, D, Am, Em, etc.)" if getattr(request, 'simplify', False) else "Include richer voicings and extensions when appropriate"
+    def _build_song_arrangement_prompt(self, request) -> str:
+        simplify_text = "Simplify chords to basic open shapes" if getattr(request, 'simplify', False) else "Include richer voicings and extensions"
+        instrument = getattr(request, 'instrument', 'Guitar')
         
         return f"""
-You are a world-class music theory teacher and professional guitarist.
+You are a world-class guitar teacher and music arranger.
 
-Analyze the song "{request.songQuery}" and return ONLY valid JSON (no explanations, no markdown, no code blocks) with this exact structure:
+Song: "{request.songQuery}"
+Instrument: {instrument}
+
+Return ONLY a valid JSON object with this exact structure — no markdown, no explanations, no code blocks:
 
 {{
   "songTitle": "Exact song title",
   "artist": "Artist name",
   "key": "e.g. C Major or A Minor",
-  "progression": [
-    {{"chord": "C", "duration": 4}},
-    {{"chord": "G", "duration": 4}},
-    {{"chord": "Am", "duration": 4}},
-    {{"chord": "F", "duration": 4}}
+  "instrument": "{instrument}",
+  "tuning": "E A D G B E",
+  "progressionSummary": ["C", "Am", "F", "G"],
+  "tablature": [
+    {{
+      "section": "Verse 1",
+      "lines": [
+        {{"lyrics": "C               G", "isChordLine": true}},
+        {{"lyrics": "Imagine there's no heaven", "isChordLine": false}}
+      ]
+    }}
+  ],
+  "chordDiagrams": [
+    {{
+      "chord": "C",
+      "frets": ["X", 3, 2, 0, 1, 0],
+      "fingers": [null, 3, 2, 0, 1, 0],
+      "capoFret": 0
+    }}
   ],
   "substitutions": [
     {{
       "originalChord": "C",
-      "substitutedChord": "Cmaj7", 
-      "theory": "Adds a more sophisticated, jazzy sound"
+      "substitutedChord": "Cmaj7",
+      "theory": "Adds dreamy open sound"
     }}
   ],
   "practiceTips": [
-    "Practice slowly with a metronome",
-    "Focus on smooth chord transitions",
-    "Memorize the progression before adding rhythm"
+    "Strum down-down-up-up-down-up",
+    "Focus on clean transitions between C and G"
   ]
 }}
 
-CRITICAL RULES:
-- Return ONLY the JSON object, nothing else
-- Use standard chord notation
-- Keep durations realistic (2, 4, or 8 beats)
+CRITICAL:
+- Return ONLY the JSON
+- Use real chords from the actual song
 - {simplify_text}
-- Make sure the JSON is valid and properly formatted
-- Provide accurate information based on actual music theory
-- Do not make up or invent chord progressions - use real musical analysis
+- Make diagrams playable on {instrument}
+- Valid JSON only!
 """
 
-    def _parse_chord_progression_response(self, response_text: str) -> Dict[str, Any]:
-        """Parse the Gemini response into structured chord progression data - NO FALLBACKS"""
+    def _parse_song_arrangement_response(self, response_text: str) -> FullSongArrangement:
         try:
-            # Clean the response text
-            cleaned_text = response_text.strip()
-            
-            # Extract JSON from response using regex
-            json_match = re.search(r'\{.*\}', cleaned_text, re.DOTALL)
+            cleaned = response_text.strip()
+            json_match = re.search(r'\{.*\}', cleaned, re.DOTALL)
             if not json_match:
-                raise ValueError("No JSON found in Gemini response")
+                raise ValueError("No JSON found in response")
             
-            json_str = json_match.group()
+            json_str = json_match.group(0)
             parsed = json.loads(json_str)
             
-            # Validate required fields - raise error if missing instead of using fallbacks
-            required_fields = ['songTitle', 'artist', 'key', 'progression']
-            for field in required_fields:
+            required = ['songTitle', 'artist', 'key', 'tablature', 'chordDiagrams']
+            for field in required:
                 if field not in parsed:
-                    raise ValueError(f"Missing required field in response: {field}")
+                    raise ValueError(f"Missing field: {field}")
             
-            # Validate progression structure
-            progression = parsed['progression']
-            if not isinstance(progression, list):
-                raise ValueError("Progression must be an array")
-            
-            for i, chord in enumerate(progression):
-                if not isinstance(chord, dict) or 'chord' not in chord or 'duration' not in chord:
-                    raise ValueError(f"Invalid chord object at position {i}")
-            
-            # Return ONLY what came from the API - no fallback values
-            return {
-                "songTitle": parsed["songTitle"],
-                "artist": parsed["artist"],
-                "key": parsed["key"],
-                "progression": parsed["progression"],
-                "substitutions": parsed.get("substitutions", []),
-                "practiceTips": parsed.get("practiceTips", [])
-            }
+            return parsed
             
         except json.JSONDecodeError as e:
-            logger.error(f"JSON decode error: {str(e)}")
-            raise ValueError(f"Failed to parse JSON response: {str(e)}")
+            logger.error(f"JSON decode error: {e}\nResponse was: {response_text[:500]}")
+            raise ValueError("Invalid JSON from AI")
         except Exception as e:
-            logger.error(f"Response parsing failed: {str(e)}")
+            logger.error(f"Parsing failed: {str(e)}")
             raise
 
-# Create global instance
+# Global instance
 gemini_music_service = GeminiMusicService()
 
-async def generateChordProgression(request) -> Dict[str, Any]:
-    return await gemini_music_service.generateChordProgression(request)
+async def generateChordProgression(request) -> FullSongArrangement:
+    return await gemini_music_service.generateSongArrangement(request)

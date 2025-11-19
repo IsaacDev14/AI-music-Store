@@ -1,6 +1,7 @@
 // src/pages/Compose/ChordStudio.tsx
 import React, { useState, useRef } from 'react';
-import { aiApi } from '../../api/apiService';
+
+import { aiApi, type Chord, type Substitution, type ChordProgression } from '../../api/apiService';
 
 // Simple icons using Heroicons
 const SearchIcon = () => (
@@ -39,27 +40,6 @@ const PauseIcon = () => (
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
   </svg>
 );
-
-// Types
-interface Chord {
-  chord: string;
-  duration: number;
-}
-
-interface Substitution {
-  originalChord: string;
-  substitutedChord: string;
-  theory: string;
-}
-
-interface ChordProgression {
-  songTitle: string;
-  artist: string;
-  key: string;
-  progression: Chord[];
-  substitutions: Substitution[];
-  practiceTips: string[];
-}
 
 interface CheckboxProps {
   label: string;
@@ -100,12 +80,13 @@ const playChord = (ctx: AudioContext, chordName: string, time: number, duration:
   const quality = match[2];
   const rootFreq = NOTE_FREQUENCIES[root] || 261.63;
   
-  let intervals = [0, 4, 7]; // Major default
-  if (quality.includes('m') && !quality.includes('maj')) intervals = [0, 3, 7]; // Minor
-  if (quality.includes('dim')) intervals = [0, 3, 6]; // Diminished
+  let intervals = [0, 4, 7]; 
+  
+  if (quality.includes('m') && !quality.includes('maj')) intervals = [0, 3, 7];
+  if (quality.includes('dim')) intervals = [0, 3, 6];
   if (quality.includes('7')) {
-    if (quality.includes('maj')) intervals.push(11); // Maj7
-    else intervals.push(10); // Dom7 or Min7
+    if (quality.includes('maj')) intervals.push(11);
+    else intervals.push(10);
   }
 
   intervals.forEach((semitone, i) => {
@@ -128,10 +109,20 @@ const playChord = (ctx: AudioContext, chordName: string, time: number, duration:
   });
 };
 
-// Result Display Component
+// FIXED: ProgressionDisplay with full safety guards
 const ProgressionDisplay: React.FC<{ progression: ChordProgression }> = ({ progression }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const audioCtxRef = useRef<AudioContext | null>(null);
+
+  // ← THIS IS THE ONLY FIX THAT MATTERS
+  if (!progression || !progression.progression || !Array.isArray(progression.progression)) {
+    return (
+      <div className="p-12 text-center bg-gray-50 rounded-lg border border-gray-200">
+        <p className="text-lg font-medium text-gray-700">No chord progression available</p>
+        <p className="text-sm text-gray-500 mt-2">The server returned incomplete data. Please try generating again.</p>
+      </div>
+    );
+  }
 
   const handlePlay = async () => {
     if (isPlaying) return;
@@ -153,7 +144,8 @@ const ProgressionDisplay: React.FC<{ progression: ChordProgression }> = ({ progr
       currentTime += duration;
     });
 
-    setTimeout(() => setIsPlaying(false), (currentTime - now) * 1000);
+    const totalDuration = (currentTime - now) * 1000;
+    setTimeout(() => setIsPlaying(false), totalDuration);
   };
 
   return (
@@ -191,7 +183,7 @@ const ProgressionDisplay: React.FC<{ progression: ChordProgression }> = ({ progr
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">
-        {progression.substitutions.length > 0 && (
+        {Array.isArray(progression.substitutions) && progression.substitutions.length > 0 && (
           <div>
             <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-800 mb-3">
               <RefreshCwIcon />
@@ -212,7 +204,7 @@ const ProgressionDisplay: React.FC<{ progression: ChordProgression }> = ({ progr
           </div>
         )}
         
-        {progression.practiceTips.length > 0 && (
+        {Array.isArray(progression.practiceTips) && progression.practiceTips.length > 0 && (
           <div>
             <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-800 mb-3">
               <SparklesIcon />
@@ -257,11 +249,12 @@ const ChordStudio: React.FC = () => {
     setProgression(null);
 
     try {
-      const result = await aiApi.generateChordProgression({
+      const result = await aiApi.generateSongArrangement({
         songQuery: search,
         simplify,
         helpPractice,
         showSubstitutions,
+        instrument: 'Guitar' 
       });
       setProgression(result);
     } catch (err: unknown) {
@@ -320,13 +313,12 @@ const ChordStudio: React.FC = () => {
         </div>
 
         <div className="grid md:grid-cols-12 gap-6">
-          {/* Sidebar Options */}
           <div className="md:col-span-3 space-y-4">
             <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
               <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Customization</h3>
               <div className="space-y-3">
                 <Checkbox label="Simplify Chords" checked={simplify} onChange={setSimplify} />
-                <Checkbox label="Play Audio Preview" checked={useBackingTrack} onChange={setUseBackingTrack} />
+                <Checkbox label="Play Audio Preview" checked={useBackingTrack} onChange={setUseBackingTrack} /> 
               </div>
             </div>
 
@@ -353,7 +345,6 @@ const ChordStudio: React.FC = () => {
             </div>
           </div>
 
-          {/* Main Output Area */}
           <div className="md:col-span-9">
             {isLoading && (
               <div className="flex flex-col items-center justify-center py-12 text-center">
