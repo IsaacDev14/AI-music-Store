@@ -379,31 +379,31 @@ const ChordStudio: React.FC = () => {
   const currentData = activeTab === 'search' ? songResult : composeResult;
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50 overflow-hidden font-sans relative">
+    <div className="min-h-screen w-full flex flex-col bg-gray-50 overflow-hidden">
       
-      {/* HEADER */}
-      <header className="flex-none bg-white border-b border-gray-200 px-8 py-4 flex items-center justify-between shadow-sm z-10">
-         <div className="flex items-center gap-4">
+      {/* HEADER - Fixed */}
+      <header className="flex-none bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between shrink-0">
+         <div className="flex items-center gap-3">
             <div className="bg-indigo-100 p-2 rounded-lg">
-               {activeTab === 'search' ? <MagnifyingGlassIcon className="w-6 h-6 text-indigo-600" /> : <SparklesIcon className="w-6 h-6 text-purple-600" />}
+               {activeTab === 'search' ? <MagnifyingGlassIcon className="w-5 h-5 text-indigo-600" /> : <SparklesIcon className="w-5 h-5 text-purple-600" />}
             </div>
             <div>
-               <h1 className="text-xl font-bold text-gray-900">{activeTab === 'search' ? 'Song Library' : 'AI Composer'}</h1>
+               <h1 className="text-lg font-bold text-gray-900">{activeTab === 'search' ? 'Song Library' : 'AI Composer'}</h1>
                <p className="text-xs text-gray-500 font-medium">Powered by AI</p>
             </div>
          </div>
 
          {/* Tab Switcher */}
-         <div className="bg-gray-100 p-1 rounded-xl flex font-medium text-sm">
+         <div className="bg-gray-100 p-1 rounded-lg flex font-medium text-sm">
             <button 
                onClick={() => setActiveTab('search')}
-               className={`px-4 py-2 rounded-lg transition-all ${activeTab === 'search' ? 'bg-white text-gray-900 shadow-sm font-bold' : 'text-gray-500 hover:text-gray-700'}`}
+               className={`px-3 py-1.5 rounded-md transition-all ${activeTab === 'search' ? 'bg-white text-gray-900 shadow-sm font-bold' : 'text-gray-500 hover:text-gray-700'}`}
             >
                Find Chords
             </button>
             <button 
                onClick={() => setActiveTab('compose')}
-               className={`px-4 py-2 rounded-lg transition-all ${activeTab === 'compose' ? 'bg-white text-gray-900 shadow-sm font-bold' : 'text-gray-500 hover:text-gray-700'}`}
+               className={`px-3 py-1.5 rounded-md transition-all ${activeTab === 'compose' ? 'bg-white text-gray-900 shadow-sm font-bold' : 'text-gray-500 hover:text-gray-700'}`}
             >
                Generate New
             </button>
@@ -411,13 +411,13 @@ const ChordStudio: React.FC = () => {
       </header>
 
       {/* MAIN SCROLLABLE CONTENT */}
-      <div className="flex-1 overflow-y-auto p-6 md:p-8 scrollbar-thin scrollbar-thumb-gray-200">
+      <div className="flex-1 overflow-y-auto p-4">
          
          {/* --- SEARCH MODE --- */}
          {activeTab === 'search' && (
-            <div className="h-full max-w-6xl mx-auto space-y-8 animate-fade-in">
+            <div className="max-w-4xl mx-auto space-y-6">
                {/* Search Bar */}
-               <form onSubmit={handleSearch} className="bg-white p-2 rounded-2xl shadow-lg border border-gray-100 flex flex-col md:flex-row gap-2">
+               <form onSubmit={handleSearch} className="bg-white p-2 rounded-xl shadow border border-gray-100 flex flex-col md:flex-row gap-2">
                   <input 
                      type="text" 
                      placeholder="Song Title..." 
@@ -436,14 +436,14 @@ const ChordStudio: React.FC = () => {
                   <button 
                      type="submit" 
                      disabled={loadingSearch}
-                     className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 rounded-xl font-bold shadow-md transition-transform active:scale-95 disabled:opacity-50 disabled:scale-100"
+                     className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-bold shadow transition-transform active:scale-95 disabled:opacity-50 disabled:scale-100"
                   >
                      {loadingSearch ? 'Searching...' : 'Search'}
                   </button>
                </form>
 
                {songResult ? (
-                  <div className="space-y-6">
+                  <div className="space-y-4">
                      <div className="flex items-center justify-between">
                         <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
                            <BookOpenIcon className="w-5 h-5" /> 
@@ -471,15 +471,15 @@ const ChordStudio: React.FC = () => {
                      </div>
 
                      {theoryAnalysis && (
-                        <div className="bg-indigo-50 border border-indigo-100 p-6 rounded-2xl text-indigo-900">
+                        <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-xl text-indigo-900">
                            <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-400 mb-2 flex items-center gap-2">
                               <InformationCircleIcon className="w-4 h-4" /> Music Theory Analysis
                            </h3>
-                           <p className="leading-relaxed">{theoryAnalysis}</p>
+                           <p className="leading-relaxed text-sm">{theoryAnalysis}</p>
                         </div>
                      )}
 
-                     <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-8 md:p-12 relative min-h-[500px] font-mono">
+                     <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6 relative min-h-[400px] font-mono">
                         {/* Paper texture effect */}
                         <div className="absolute top-0 left-0 w-full h-2 bg-linear-to-b from-gray-100 to-transparent opacity-50"></div>
                         <div className="space-y-1">
@@ -488,8 +488,8 @@ const ChordStudio: React.FC = () => {
                      </div>
                   </div>
                ) : (
-                  <div className="text-center py-20 opacity-50">
-                     <MagnifyingGlassIcon className="w-24 h-24 mx-auto mb-4 text-gray-300" />
+                  <div className="text-center py-12 opacity-50">
+                     <MagnifyingGlassIcon className="w-16 h-16 mx-auto mb-4 text-gray-300" />
                      <p className="text-gray-400 font-medium">Enter a song title to get chords & lyrics</p>
                   </div>
                )}
@@ -498,21 +498,21 @@ const ChordStudio: React.FC = () => {
 
          {/* --- COMPOSE MODE --- */}
          {activeTab === 'compose' && (
-            <div className="h-full max-w-6xl mx-auto space-y-8 animate-fade-in">
+            <div className="max-w-4xl mx-auto space-y-6">
                
                {/* Controls */}
-               <div className="bg-white p-6 md:p-8 rounded-2xl shadow-lg border border-gray-100">
-                  <h2 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
+               <div className="bg-white p-6 rounded-xl shadow border border-gray-100">
+                  <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
                      <AdjustmentsHorizontalIcon className="w-5 h-5 text-purple-500" /> Progression Settings
                   </h2>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                      <div>
                         <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Musical Genre</label>
                         <input 
                            type="text" 
                            value={genre} 
                            onChange={e => setGenre(e.target.value)}
-                           className="w-full p-4 bg-gray-50 border-gray-200 rounded-xl text-gray-900 font-bold focus:ring-purple-500 focus:border-purple-500"
+                           className="w-full p-3 bg-gray-50 border-gray-200 rounded-lg text-gray-900 font-bold focus:ring-purple-500 focus:border-purple-500"
                         />
                      </div>
                      <div>
@@ -521,46 +521,46 @@ const ChordStudio: React.FC = () => {
                            type="text" 
                            value={mood} 
                            onChange={e => setMood(e.target.value)}
-                           className="w-full p-4 bg-gray-50 border-gray-200 rounded-xl text-gray-900 font-bold focus:ring-purple-500 focus:border-purple-500"
+                           className="w-full p-3 bg-gray-50 border-gray-200 rounded-lg text-gray-900 font-bold focus:ring-purple-500 focus:border-purple-500"
                         />
                      </div>
                   </div>
                   <button 
                      onClick={handleCompose}
                      disabled={loadingCompose}
-                     className="w-full bg-linear-to-r from-purple-600 to-indigo-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg shadow-purple-200 hover:shadow-xl transition-all transform active:scale-[0.99] flex items-center justify-center gap-2"
+                     className="w-full bg-linear-to-r from-purple-600 to-indigo-600 text-white py-3 rounded-lg font-bold shadow-lg shadow-purple-200 hover:shadow-xl transition-all transform active:scale-[0.99] flex items-center justify-center gap-2"
                   >
-                     {loadingCompose ? <ArrowPathIcon className="w-6 h-6 animate-spin" /> : <SparklesIcon className="w-6 h-6" />}
+                     {loadingCompose ? <ArrowPathIcon className="w-5 h-5 animate-spin" /> : <SparklesIcon className="w-5 h-5" />}
                      {loadingCompose ? 'Composing...' : 'Generate Progression'}
                   </button>
                </div>
 
                {composeResult && (
-                  <div className="space-y-6">
-                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="space-y-4">
+                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         {/* Key Info Card */}
-                        <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex flex-col justify-center items-center text-center">
+                        <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm flex flex-col justify-center items-center text-center">
                            <div className="text-sm text-gray-400 font-bold uppercase tracking-wider mb-1">Key</div>
-                           <div className="text-3xl font-black text-gray-900">{composeResult.key}</div>
+                           <div className="text-2xl font-black text-gray-900">{composeResult.key}</div>
                         </div>
                          {/* Tempo Info Card */}
-                        <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex flex-col justify-center items-center text-center">
+                        <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm flex flex-col justify-center items-center text-center">
                            <div className="text-sm text-gray-400 font-bold uppercase tracking-wider mb-1">Tempo</div>
-                           <div className="text-3xl font-black text-gray-900">120 <span className="text-sm text-gray-400 font-normal">BPM</span></div>
+                           <div className="text-2xl font-black text-gray-900">120 <span className="text-sm text-gray-400 font-normal">BPM</span></div>
                         </div>
                         {/* Play Button (Visual) */}
                         <button 
                           onClick={handlePlay}
                           disabled={isPlaying}
-                          className="bg-gray-900 text-white rounded-2xl shadow-lg hover:bg-black transition-colors flex flex-col items-center justify-center p-4 group disabled:opacity-50"
+                          className="bg-gray-900 text-white rounded-lg shadow hover:bg-black transition-colors flex flex-col items-center justify-center p-4 group disabled:opacity-50"
                         >
-                           <PlayCircleIcon className="w-10 h-10 mb-2 group-hover:scale-110 transition-transform" />
+                           <PlayCircleIcon className="w-8 h-8 mb-2 group-hover:scale-110 transition-transform" />
                            <span className="text-sm font-bold">{isPlaying ? 'Playing...' : 'Play Preview'}</span>
                         </button>
                      </div>
 
                      {/* Chord Sheet Display */}
-                     <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-8 md:p-12 relative min-h-[500px] font-mono">
+                     <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6 relative min-h-[400px] font-mono">
                         <div className="absolute top-0 left-0 w-full h-2 bg-linear-to-b from-gray-100 to-transparent opacity-50"></div>
                         <div className="space-y-1">
                            {renderChordSheet(formatChordSheet(composeResult))}
@@ -569,15 +569,15 @@ const ChordStudio: React.FC = () => {
 
                      {/* Substitutions */}
                      {composeResult.substitutions && composeResult.substitutions.length > 0 && (
-                        <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
-                           <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">Chord Substitutions</h3>
-                           <div className="grid md:grid-cols-2 gap-4">
+                        <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+                           <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Chord Substitutions</h3>
+                           <div className="grid md:grid-cols-2 gap-3">
                               {composeResult.substitutions.map((sub: { originalChord: string; substitutedChord: string; theory: string }, index: number) => (
-                                 <div key={index} className="p-4 bg-gray-50 rounded-lg border border-gray-100">
+                                 <div key={index} className="p-3 bg-gray-50 rounded border border-gray-100">
                                     <div className="flex items-center gap-2 mb-2">
                                        <span className="line-through text-gray-500 text-sm">{sub.originalChord}</span>
                                        <span className="text-gray-400">→</span>
-                                       <span className="text-indigo-600 font-bold bg-indigo-50 px-2 py-1 rounded">{sub.substitutedChord}</span>
+                                       <span className="text-indigo-600 font-bold bg-indigo-50 px-2 py-1 rounded text-sm">{sub.substitutedChord}</span>
                                     </div>
                                     <p className="text-sm text-gray-600">{sub.theory}</p>
                                  </div>
@@ -588,12 +588,12 @@ const ChordStudio: React.FC = () => {
 
                      {/* Practice Tips */}
                      {composeResult.practiceTips && composeResult.practiceTips.length > 0 && (
-                        <div className="bg-purple-50 border border-purple-100 p-6 rounded-2xl">
-                           <h3 className="text-purple-900 font-bold text-lg mb-3">Practice Tips</h3>
+                        <div className="bg-purple-50 border border-purple-100 p-4 rounded-lg">
+                           <h3 className="text-purple-900 font-bold mb-2">Practice Tips</h3>
                            <ul className="space-y-2">
                               {composeResult.practiceTips.map((tip: string, index: number) => (
-                                 <li key={index} className="flex items-start gap-3 text-purple-800">
-                                    <span className="shrink-0 w-6 h-6 flex items-center justify-center rounded-full bg-purple-100 text-purple-600 font-bold text-sm mt-0.5">
+                                 <li key={index} className="flex items-start gap-2 text-purple-800 text-sm">
+                                    <span className="shrink-0 w-5 h-5 flex items-center justify-center rounded-full bg-purple-100 text-purple-600 font-bold text-xs mt-0.5">
                                        {index + 1}
                                     </span>
                                     <span>{tip}</span>
@@ -609,11 +609,11 @@ const ChordStudio: React.FC = () => {
       </div>
 
       {/* BOTTOM VISUALIZER PANEL */}
-      <div className={`bg-white border-t border-gray-200 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)] z-40 transition-all duration-300 ease-in-out flex flex-col shrink-0 ${isVisualizerOpen ? 'h-64' : 'h-12'}`}>
+      <div className={`bg-white border-t border-gray-200 shadow-lg z-40 transition-all duration-300 ease-in-out flex flex-col shrink-0 ${isVisualizerOpen ? 'h-56' : 'h-12'}`}>
          
          {/* Header Bar */}
          <div 
-            className="h-12 px-6 flex items-center justify-between cursor-pointer bg-gray-50 hover:bg-gray-100 border-b border-gray-200 transition-colors"
+            className="h-12 px-4 flex items-center justify-between cursor-pointer bg-gray-50 hover:bg-gray-100 border-b border-gray-200 transition-colors"
             onClick={() => setIsVisualizerOpen(!isVisualizerOpen)}
          >
             {/* Title */}
@@ -624,18 +624,18 @@ const ChordStudio: React.FC = () => {
             </div>
 
             {/* Instrument Toggle */}
-            <div className="flex items-center gap-3" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
                <span className="text-[10px] font-bold text-gray-400 uppercase hidden sm:inline-block">Instrument:</span>
-               <div className="flex bg-white border border-gray-200 p-0.5 rounded-lg shadow-sm">
+               <div className="flex bg-white border border-gray-200 p-0.5 rounded-md shadow-sm">
                   <button 
                      onClick={() => setSelectedInstrument('Guitar')}
-                     className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${selectedInstrument === 'Guitar' ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}
+                     className={`px-2 py-1 text-[10px] font-bold rounded transition-all ${selectedInstrument === 'Guitar' ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}
                   >
                      Guitar
                   </button>
                   <button 
                      onClick={() => setSelectedInstrument('Ukulele')}
-                     className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${selectedInstrument === 'Ukulele' ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}
+                     className={`px-2 py-1 text-[10px] font-bold rounded transition-all ${selectedInstrument === 'Ukulele' ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}
                   >
                      Ukulele
                   </button>
@@ -645,7 +645,7 @@ const ChordStudio: React.FC = () => {
 
          {/* Scrollable Content */}
          {isVisualizerOpen && (
-             <div className="flex-1 overflow-x-auto p-4 flex items-center gap-4 bg-white scrollbar-thin scrollbar-thumb-gray-200">
+             <div className="flex-1 overflow-x-auto p-4 flex items-center gap-4 bg-white">
                 {extractedChords.length > 0 ? (
                     extractedChords.map((chord: string) => (
                        <div key={chord} className="shrink-0 transition-transform hover:-translate-y-1">

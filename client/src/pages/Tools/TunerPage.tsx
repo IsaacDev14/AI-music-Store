@@ -5,10 +5,16 @@ import {
   StopIcon, 
   ExclamationTriangleIcon,
   MusicalNoteIcon,
-  SignalIcon
+  SignalIcon,
+  CheckBadgeIcon
 } from '@heroicons/react/24/solid';
 
 const NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+const NOTE_FREQUENCIES: { [key: string]: number } = {
+  'C': 261.63, 'C#': 277.18, 'Db': 277.18, 'D': 293.66, 'D#': 311.13, 'Eb': 311.13,
+  'E': 329.63, 'F': 349.23, 'F#': 369.99, 'Gb': 369.99, 'G': 392.00, 'G#': 415.30,
+  'Ab': 415.30, 'A': 440.00, 'A#': 466.16, 'Bb': 466.16, 'B': 493.88
+};
 
 const TunerPage: React.FC = () => {
   const [isListening, setIsListening] = useState(false);
@@ -16,7 +22,9 @@ const TunerPage: React.FC = () => {
   const [note, setNote] = useState<string>("--");
   const [cents, setCents] = useState<number>(0);
   const [error, setError] = useState<string>('');
-  const [selectedInstrument, setSelectedInstrument] = useState<'Guitar' | 'Bass' | 'Ukulele' | 'Violin'>('Guitar');
+  const [selectedInstrument, setSelectedInstrument] = useState<'Guitar' | 'Bass' | 'Ukulele' | 'Violin' | 'Chromatic'>('Chromatic');
+  const [closestNote, setClosestNote] = useState<string>("--");
+  const [targetFrequency, setTargetFrequency] = useState<number>(440);
 
   // Audio Refs
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -31,10 +39,38 @@ const TunerPage: React.FC = () => {
 
   // Instrument-specific tuning references
   const TUNING_REFERENCES = {
-    Guitar: { A4: 440, name: 'E-A-D-G-B-E' },
-    Bass: { A4: 440, name: 'E-A-D-G' },
-    Ukulele: { A4: 440, name: 'G-C-E-A' },
-    Violin: { A4: 440, name: 'G-D-A-E' }
+    Guitar: { A4: 440, name: 'E-A-D-G-B-E', strings: ['E2', 'A2', 'D3', 'G3', 'B3', 'E4'] },
+    Bass: { A4: 440, name: 'E-A-D-G', strings: ['E1', 'A1', 'D2', 'G2'] },
+    Ukulele: { A4: 440, name: 'G-C-E-A', strings: ['G4', 'C4', 'E4', 'A4'] },
+    Violin: { A4: 440, name: 'G-D-A-E', strings: ['G3', 'D4', 'A4', 'E5'] },
+    Chromatic: { A4: 440, name: 'All Notes', strings: ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'] }
+  };
+
+  // Find closest note and calculate cents
+  const findClosestNote = (frequency: number): { note: string; cents: number } => {
+    let minDiff = Infinity;
+    let closestNote = "C";
+    let targetFreq = 440;
+    
+    for (const [note, noteFreq] of Object.entries(NOTE_FREQUENCIES)) {
+      // Check multiple octaves
+      for (let octave = -2; octave <= 2; octave++) {
+        const freq = noteFreq * Math.pow(2, octave);
+        const diff = Math.abs(frequency - freq);
+        
+        if (diff < minDiff) {
+          minDiff = diff;
+          closestNote = note;
+          targetFreq = freq;
+        }
+      }
+    }
+    
+    setTargetFrequency(targetFreq);
+    
+    // Calculate cents difference
+    const cents = 1200 * Math.log2(frequency / targetFreq);
+    return { note: closestNote, cents: Math.round(cents * 10) / 10 };
   };
 
   // --- ALGORITHM (Auto-Correlate) ---
@@ -82,23 +118,27 @@ const TunerPage: React.FC = () => {
     const ac = autoCorrelate(bufferRef.current, audioContextRef.current.sampleRate);
     
     if (ac !== -1) {
-      const noteNum = 12 * (Math.log(ac / 440) / Math.log(2));
-      const noteIndex = (Math.round(noteNum) + 69) % 12;
-      const targetCents = Math.floor((noteNum - Math.round(noteNum)) * 100);
-      
       setPitch(ac);
-      setNote(NOTES[noteIndex]);
-      displayCentsRef.current += (targetCents - displayCentsRef.current) * 0.15;
+      
+      // Chromatic tuning - find closest note
+      const { note: closest, cents: calculatedCents } = findClosestNote(ac);
+      setClosestNote(closest);
+      setNote(closest);
+      
+      // Smooth interpolation for the needle
+      displayCentsRef.current += (calculatedCents - displayCentsRef.current) * 0.15;
       setCents(displayCentsRef.current);
     } else {
-       displayCentsRef.current *= 0.95;
-       setCents(displayCentsRef.current);
-       if (Math.abs(displayCentsRef.current) < 1) {
-           setPitch(null); 
-       }
+      // Decay needle to center if no sound
+      displayCentsRef.current *= 0.95;
+      setCents(displayCentsRef.current);
+      if (Math.abs(displayCentsRef.current) < 1) {
+        setPitch(null);
+        setClosestNote("--");
+      }
     }
 
-    // Oscilloscope Visualization
+    // COMPACT Oscilloscope Visualization
     if (canvasRef.current) {
         const canvas = canvasRef.current;
         const ctx = canvas.getContext('2d');
@@ -106,28 +146,31 @@ const TunerPage: React.FC = () => {
             const width = canvas.width;
             const height = canvas.height;
             
-            ctx.fillStyle = 'rgba(0, 10, 0, 0.2)';
+            // Clear with dark background
+            ctx.fillStyle = 'rgba(0, 5, 0, 0.3)';
             ctx.fillRect(0, 0, width, height);
             
+            // Simplified grid - fewer lines
             ctx.beginPath();
-            ctx.strokeStyle = 'rgba(0, 255, 0, 0.1)';
-            ctx.lineWidth = 1;
-            for(let x=0; x<width; x+=20) { ctx.moveTo(x, 0); ctx.lineTo(x, height); }
-            for(let y=0; y<height; y+=20) { ctx.moveTo(0, y); ctx.lineTo(width, y); }
+            ctx.strokeStyle = 'rgba(0, 255, 0, 0.08)';
+            ctx.lineWidth = 0.5;
+            for(let x=0; x<width; x+=30) { ctx.moveTo(x, 0); ctx.lineTo(x, height); }
+            for(let y=0; y<height; y+=15) { ctx.moveTo(0, y); ctx.lineTo(width, y); }
             ctx.stroke();
 
-            ctx.lineWidth = 2;
+            // Waveform with reduced amplification
+            ctx.lineWidth = 1.5;
             ctx.strokeStyle = ac !== -1 ? '#4ade80' : '#15803d';
-            ctx.shadowBlur = 5;
+            ctx.shadowBlur = 3;
             ctx.shadowColor = '#4ade80';
             
             ctx.beginPath();
             const sliceWidth = width * 1.0 / bufferRef.current.length;
             let x = 0;
-            const step = 8; 
+            const step = 12; // Increased step for performance
 
             for (let i = 0; i < bufferRef.current.length; i+=step) {
-                const v = bufferRef.current[i] * 40;
+                const v = bufferRef.current[i] * 25; // Reduced amplification
                 const y = (height / 2) + v;
                 if (i === 0) ctx.moveTo(x, y);
                 else ctx.lineTo(x, y);
@@ -181,6 +224,7 @@ const TunerPage: React.FC = () => {
     setIsListening(false);
     setPitch(null);
     setNote("--");
+    setClosestNote("--");
     setCents(0);
     displayCentsRef.current = 0;
   };
@@ -197,6 +241,7 @@ const TunerPage: React.FC = () => {
   // --- GAUGE MATH ---
   const rotation = Math.max(-50, Math.min(50, cents)) * (90 / 50);
   const isInTune = Math.abs(cents) < 3 && pitch !== null;
+  const isCloseToTune = Math.abs(cents) < 10 && pitch !== null;
   const isListeningActive = isListening;
 
   // Dynamic Backlight Color Calculation
@@ -206,29 +251,35 @@ const TunerPage: React.FC = () => {
     : 'rgba(0,0,0,0.2)';
 
   return (
-    <div className="h-screen w-screen bg-stone-900 flex flex-col overflow-hidden">
+    <div className=" w-screen bg-stone-900 flex flex-col overflow-hidden">
       
       {/* COMPACT HEADER */}
-      <header className="flex-none px-6 py-3 flex items-center justify-between bg-stone-800/50 backdrop-blur-sm border-b border-stone-700/50">
-        <div className="flex items-center gap-3">
-          <div className="bg-green-500/20 p-2 rounded-lg">
-            <MusicalNoteIcon className="w-5 h-5 text-green-400" />
+      <header className="flex-none px-4 py-2 flex items-center justify-between bg-stone-800/50 backdrop-blur-sm border-b border-stone-700/50">
+        <div className="flex items-center gap-2">
+          <div className="bg-green-500/20 p-1 rounded">
+            <MusicalNoteIcon className="w-4 h-4 text-green-400" />
           </div>
           <div>
-            <h1 className="text-lg font-bold text-white">Precision Tuner</h1>
-            <p className="text-xs text-stone-400">Professional Instrument Tuning</p>
+            <h1 className="text-sm font-bold text-white">Chromatic Tuner</h1>
+            <p className="text-[10px] text-stone-400">Professional Tuning</p>
           </div>
         </div>
 
+        {/* A4 = 440Hz Tuning Pointer */}
+        <div className="flex items-center gap-2 bg-stone-700/50 px-2 py-1 rounded border border-stone-600/50">
+          <div className="text-amber-300 text-[10px] font-mono font-bold">A4 = 440Hz</div>
+        </div>
+
         {/* Compact Instrument Selector */}
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-stone-400">Instrument:</span>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-stone-400">Mode:</span>
           <select 
             value={selectedInstrument}
             onChange={(e) => setSelectedInstrument(e.target.value as any)}
-            className="bg-stone-700 border border-stone-600 rounded-lg px-3 py-1 text-sm text-white focus:ring-2 focus:ring-green-500 focus:border-green-500"
+            className="bg-stone-700 border border-stone-600 rounded px-2 py-1 text-xs text-white focus:ring-1 focus:ring-green-500"
             disabled={isListening}
           >
+            <option value="Chromatic">Chromatic</option>
             <option value="Guitar">Guitar</option>
             <option value="Bass">Bass</option>
             <option value="Ukulele">Ukulele</option>
@@ -237,180 +288,289 @@ const TunerPage: React.FC = () => {
         </div>
       </header>
 
-      {/* MAIN CONTENT - Fills remaining space */}
-      <div className="flex-1 p-4 overflow-hidden">
-        <div className="h-full max-w-6xl mx-auto flex flex-col">
+      {/* SCROLLABLE MAIN CONTENT - Optimized for mobile */}
+      <div className="flex-1 overflow-y-auto p-2">
+        <div className="max-w-4xl mx-auto space-y-3">
           {error && (
-            <div className="mb-4 p-3 bg-red-900/80 text-red-100 text-sm rounded-lg border border-red-700 flex items-center gap-3">
-              <ExclamationTriangleIcon className="w-4 h-4 flex-shrink-0" />
+            <div className="p-2 bg-red-900/80 text-red-100 rounded border border-red-700 flex items-center gap-2 text-xs">
+              <ExclamationTriangleIcon className="w-3 h-3 shrink-0" />
               {error}
             </div>
           )}
 
           {/* Compact Instrument Info */}
-          <div className="mb-4 bg-stone-800/50 rounded-xl p-4 border border-stone-700/50 backdrop-blur-sm">
+          <div className="bg-stone-800/50 rounded-lg p-3 border border-stone-700/50 backdrop-blur-sm">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-base font-bold text-white">{selectedInstrument} Tuner</h2>
-                <p className="text-stone-400 text-xs">
-                  Tuning: <span className="font-mono text-amber-400">{TUNING_REFERENCES[selectedInstrument].name}</span>
+                <h2 className="text-sm font-bold text-white">
+                  {selectedInstrument === 'Chromatic' ? 'Chromatic Tuner' : `${selectedInstrument} Tuner`}
+                </h2>
+                <p className="text-stone-400 text-[10px]">
+                  {selectedInstrument === 'Chromatic' 
+                    ? 'All Notes • A4 = 440 Hz' 
+                    : `Tuning: ${TUNING_REFERENCES[selectedInstrument].name}`}
                 </p>
               </div>
               <div className="text-right">
-                <p className="text-stone-400 text-xs">Reference</p>
-                <p className="text-lg font-bold text-green-400">A4 = 440 Hz</p>
+                <p className="text-stone-400 text-[10px]">Target</p>
+                <p className="text-sm font-bold text-green-400">{closestNote}</p>
               </div>
             </div>
           </div>
 
-          {/* VINTAGE RADIO UNIT - Flexible height */}
-          <div className="flex-1 min-h-0 mb-4">
-            <div className="bg-gradient-to-b from-stone-300 to-stone-400 rounded-2xl p-2 shadow-[0_20px_60px_rgba(0,0,0,0.7)] border-t border-stone-200/50 h-full">
-              {/* Inner Bezel */}
-              <div className="bg-stone-800 rounded-xl p-6 border-4 border-stone-700 relative overflow-hidden h-full flex flex-col">
+          {/* COMPACT VINTAGE RADIO UNIT - Reduced height */}
+          <div className="bg-linear-to-b from-stone-300 to-stone-400 rounded-xl p-1 shadow-[0_10px_30px_rgba(0,0,0,0.7)] border-t border-stone-200/50">
+            {/* Inner Bezel */}
+            <div className="bg-stone-800 rounded-lg p-3 border-2 border-stone-700 relative overflow-hidden">
+              
+              {/* Wood Grain Overlay Effect */}
+              <div className="absolute inset-0 opacity-10 pointer-events-none" 
+                   style={{ backgroundImage: 'repeating-linear-gradient(45deg, #000 0, #000 1px, transparent 0, transparent 50%)', backgroundSize: '8px 8px' }}>
+              </div>
+
+              {/* COMPACT ANALOG METER WINDOW - Reduced height */}
+              <div className="relative w-full h-40 bg-black rounded-t-[3rem] rounded-b-md overflow-hidden border-2 border-stone-600 shadow-[inset_0_0_10px_rgba(0,0,0,1)] mb-3">
                 
-                {/* Wood Grain Overlay Effect */}
-                <div className="absolute inset-0 opacity-10 pointer-events-none" 
-                     style={{ backgroundImage: 'repeating-linear-gradient(45deg, #000 0, #000 1px, transparent 0, transparent 50%)', backgroundSize: '10px 10px' }}>
+                {/* Dynamic Backlight Layer */}
+                <div className="absolute inset-0 transition-colors duration-200 ease-linear"
+                     style={{ backgroundColor: backlightColor, boxShadow: `inset 0 0 40px ${backlightColor}` }}>
                 </div>
 
-                {/* ANALOG METER WINDOW - Flexible */}
-                <div className="relative flex-1 min-h-0 bg-black rounded-t-[4rem] rounded-b-lg overflow-hidden border-4 border-stone-600 shadow-[inset_0_0_20px_rgba(0,0,0,1)] mb-4">
-                  
-                  {/* Dynamic Backlight Layer */}
-                  <div className="absolute inset-0 transition-colors duration-200 ease-linear"
-                       style={{ backgroundColor: backlightColor, boxShadow: `inset 0 0 60px ${backlightColor}` }}>
-                  </div>
+                {/* Vignette */}
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom,transparent_30%,black_90%)]"></div>
+                
+                {/* Glass Reflection */}
+                <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/3 to-white/5 pointer-events-none rounded-t-[3rem]"></div>
 
-                  {/* Vignette */}
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom,transparent_30%,black_90%)]"></div>
+                {/* Scale Graphics */}
+                <svg viewBox="0 0 300 140" className="absolute inset-0 w-full h-full">
+                  <path d="M 40 130 A 100 100 0 0 1 260 130" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="1.5" />
                   
-                  {/* Glass Reflection */}
-                  <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/5 to-white/10 pointer-events-none rounded-t-[4rem]"></div>
-
-                  {/* Scale Graphics */}
-                  <svg viewBox="0 0 300 160" className="absolute inset-0 w-full h-full">
-                    <path d="M 40 150 A 110 110 0 0 1 260 150" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="2" />
+                  {/* Ticks */}
+                  {Array.from({ length: 21 }).map((_, i) => {
+                    const val = i - 10;
+                    const deg = (val * (180 / 20)) - 90;
+                    const rad = (deg * Math.PI) / 180;
+                    const cx = 150; const cy = 130; const r = 100;
+                    const isMajor = i % 5 === 0;
+                    const isCenter = i === 10;
                     
-                    {/* Ticks */}
-                    {Array.from({ length: 21 }).map((_, i) => {
-                      const val = i - 10;
-                      const deg = (val * (180 / 20)) - 90;
-                      const rad = (deg * Math.PI) / 180;
-                      const cx = 150; const cy = 150; const r = 110;
-                      const isMajor = i % 5 === 0;
-                      const isCenter = i === 10;
-                      
-                      const x1 = cx + r * Math.sin(rad);
-                      const y1 = cy - r * Math.cos(rad);
-                      const len = isCenter ? 15 : (isMajor ? 10 : 5);
-                      const x2 = cx + (r - len) * Math.sin(rad);
-                      const y2 = cy - (r - len) * Math.cos(rad);
+                    const x1 = cx + r * Math.sin(rad);
+                    const y1 = cy - r * Math.cos(rad);
+                    const len = isCenter ? 10 : (isMajor ? 6 : 3);
+                    const x2 = cx + (r - len) * Math.sin(rad);
+                    const y2 = cy - (r - len) * Math.cos(rad);
 
-                      return (
-                        <line 
-                          key={i} x1={x1} y1={y1} x2={x2} y2={y2} 
-                          stroke={isCenter ? '#fbbf24' : 'rgba(255,255,255,0.4)'} 
-                          strokeWidth={isCenter ? 3 : 1.5}
-                        />
-                      );
-                    })}
-                    <text x="150" y="130" textAnchor="middle" className="fill-amber-400 text-[8px] font-mono tracking-widest opacity-80">TUNING</text>
-                    <text x="50" y="140" textAnchor="middle" className="fill-white/40 text-[8px] font-bold">FLAT</text>
-                    <text x="250" y="140" textAnchor="middle" className="fill-white/40 text-[8px] font-bold">SHARP</text>
-                  </svg>
+                    return (
+                      <line 
+                        key={i} x1={x1} y1={y1} x2={x2} y2={y2} 
+                        stroke={isCenter ? '#fbbf24' : 'rgba(255,255,255,0.3)'} 
+                        strokeWidth={isCenter ? 2 : 1}
+                      />
+                    );
+                  })}
 
-                  {/* NOTE DISPLAY (Digital Overlay) */}
-                  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center z-20">
-                    <div className={`text-5xl font-black tracking-tighter drop-shadow-lg transition-all duration-300 ${isInTune ? 'text-white scale-110' : 'text-white/80'}`}>
-                      {note}
-                    </div>
-                    <div className="text-xs font-mono text-amber-300/80 mt-1">
-                      {pitch ? `${pitch.toFixed(1)} Hz` : '-- Hz'}
-                    </div>
-                    <div className={`text-sm font-bold mt-2 transition-all ${isInTune ? 'text-green-400 scale-105' : 'text-amber-400'}`}>
-                      {isInTune ? 'PERFECT!' : Math.abs(cents) > 20 ? 'ADJUST TUNING' : 'GETTING CLOSE'}
-                    </div>
+                  {/* Zone Indicators */}
+                  <path d="M 110 130 A 100 100 0 0 1 150 40" fill="none" stroke="rgba(239, 68, 68, 0.3)" strokeWidth="6" strokeLinecap="round" />
+                  <path d="M 150 40 A 100 100 0 0 1 190 130" fill="none" stroke="rgba(239, 68, 68, 0.3)" strokeWidth="6" strokeLinecap="round" />
+                  <path d="M 125 130 A 100 100 0 0 1 150 80" fill="none" stroke="rgba(234, 179, 8, 0.4)" strokeWidth="6" strokeLinecap="round" />
+                  <path d="M 150 80 A 100 100 0 0 1 175 130" fill="none" stroke="rgba(234, 179, 8, 0.4)" strokeWidth="6" strokeLinecap="round" />
+                  <path d="M 140 130 A 100 100 0 0 1 150 110" fill="none" stroke="rgba(34, 197, 94, 0.5)" strokeWidth="6" strokeLinecap="round" />
+                  <path d="M 150 110 A 100 100 0 0 1 160 130" fill="none" stroke="rgba(34, 197, 94, 0.5)" strokeWidth="6" strokeLinecap="round" />
+
+                  <text x="150" y="115" textAnchor="middle" className="fill-amber-400 text-[5px] font-mono tracking-widest opacity-80">TUNING</text>
+                  <text x="50" y="125" textAnchor="middle" className="fill-white/30 text-[5px] font-bold">FLAT</text>
+                  <text x="250" y="125" textAnchor="middle" className="fill-white/30 text-[5px] font-bold">SHARP</text>
+                  
+                  {/* Cent Markers */}
+                  <text x="80" y="130" textAnchor="middle" className="fill-white/40 text-[4px] font-mono">-50</text>
+                  <text x="110" y="130" textAnchor="middle" className="fill-white/40 text-[4px] font-mono">-25</text>
+                  <text x="150" y="130" textAnchor="middle" className="fill-amber-300 text-[4px] font-mono">0</text>
+                  <text x="190" y="130" textAnchor="middle" className="fill-white/40 text-[4px] font-mono">+25</text>
+                  <text x="220" y="130" textAnchor="middle" className="fill-white/40 text-[4px] font-mono">+50</text>
+                </svg>
+
+                {/* PERFECT TUNING ZONE INDICATOR */}
+                <div className="absolute bottom-5 left-1/2 transform -translate-x-1/2 w-10 h-0.5 bg-green-400/60 rounded-full z-10 shadow-[0_0_5px_rgba(34,197,94,0.5)]"></div>
+
+                {/* NOTE DISPLAY (Digital Overlay) */}
+                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center z-20">
+                  <div className={`text-2xl font-black tracking-tighter drop-shadow-lg transition-all duration-300 ${isInTune ? 'text-white scale-110' : 'text-white/80'}`}>
+                    {note}
                   </div>
-
-                  {/* NEEDLE */}
-                  <div className="absolute bottom-0 left-1/2 w-0 h-0 z-30" style={{ transform: `rotate(${rotation}deg)` }}>
-                    {/* The Needle stick */}
-                    <div className="absolute bottom-0 -left-[1px] w-[2px] h-[60%] bg-red-500 shadow-[0_0_5px_rgba(255,0,0,0.8)] origin-bottom"></div>
+                  <div className="text-[9px] font-mono text-amber-300/80 mt-0.5">
+                    {pitch ? `${pitch.toFixed(1)} Hz` : '-- Hz'}
+                    {pitch && <span className="text-green-400 ml-1">({Math.abs(cents).toFixed(1)}¢)</span>}
                   </div>
                   
-                  {/* Pivot Cap */}
-                  <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-12 h-12 bg-gradient-to-b from-stone-700 to-stone-900 rounded-full border-4 border-stone-600 shadow-lg z-40 flex items-center justify-center">
-                    <div className="w-3 h-3 bg-stone-500 rounded-full shadow-inner"></div>
+                  {/* TUNING STATUS WITH VISUAL FEEDBACK */}
+                  <div className={`mt-1 transition-all duration-300 ${
+                    isInTune ? 'scale-105' : 'scale-100'
+                  }`}>
+                    {isInTune && (
+                      <div className="flex items-center justify-center gap-1 animate-pulse">
+                        <CheckBadgeIcon className="w-3 h-3 text-green-400" />
+                        <span className="text-xs font-bold text-green-400">PERFECT!</span>
+                      </div>
+                    )}
+                    {!isInTune && pitch && (
+                      <div className={`text-xs font-bold ${
+                        isCloseToTune ? 'text-yellow-400' : 'text-amber-400'
+                      }`}>
+                        {cents > 0 ? 'SHARP' : 'FLAT'} • {Math.abs(cents).toFixed(1)}¢
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                {/* CONTROLS & OSCILLOSCOPE - Compact */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-center">
-                  {/* Toggle Switch Area */}
-                  <div className="col-span-1 flex flex-col items-center">
-                    <button 
-                      onClick={isListening ? stopTuner : startTuner}
-                      className={`w-16 h-16 rounded-full border-4 shadow-lg flex items-center justify-center transition-all active:scale-95 ${
-                        isListening 
-                        ? 'bg-stone-800 border-green-500/50 text-green-500 shadow-[0_0_15px_rgba(34,197,94,0.3)]' 
-                        : 'bg-stone-300 border-stone-400 text-stone-500'
-                      }`}
-                    >
-                      {isListening ? (
-                        <StopIcon className="w-6 h-6" />
-                      ) : (
-                        <MicrophoneIcon className="w-6 h-6" />
-                      )}
-                    </button>
-                    <span className="text-[10px] font-bold text-stone-500 uppercase mt-1 tracking-widest">
-                      {isListening ? 'LISTENING' : 'START'}
+                {/* CAR-STYLE GAUGE POINTER/NEEDLE */}
+                <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 z-30" style={{ transform: `translateX(-50%) rotate(${rotation}deg)` }}>
+                  {/* Needle Base */}
+                  <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-3 h-3 bg-gradient-to-br from-stone-700 to-stone-900 rounded-full border border-stone-600 shadow-md z-40"></div>
+                  
+                  {/* The Needle stick - Car Gauge Style */}
+                  <div className="absolute bottom-1.5 left-1/2 w-1 h-20 bg-gradient-to-t from-red-500 via-red-400 to-red-300 shadow-[0_0_8px_rgba(239,68,68,0.8)] origin-bottom -translate-x-1/2"></div>
+                  
+                  {/* Pointer Head - Arrow Style */}
+                  <div className="absolute bottom-20 left-1/2 transform -translate-x-1/2">
+                    <div className="w-0 h-0 border-l-[5px] border-r-[5px] border-b-[10px] border-l-transparent border-r-transparent border-b-red-500 shadow-[0_0_6px_rgba(239,68,68,0.8)]"></div>
+                  </div>
+
+                  {/* Center Cap */}
+                  <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-5 h-5 bg-gradient-to-br from-stone-300 to-stone-500 rounded-full border border-stone-400 shadow-inner z-50 flex items-center justify-center">
+                    <div className="w-1.5 h-1.5 bg-stone-700 rounded-full shadow-md"></div>
+                  </div>
+                </div>
+
+                {/* CENTER TUNING INDICATOR */}
+                <div className="absolute bottom-1 left-1/2 transform -translate-x-1/2 flex items-center gap-1 z-20">
+                  <div className={`w-1 h-1 rounded-full transition-all duration-300 ${
+                    isInTune ? 'bg-green-400 animate-pulse scale-125' : 'bg-gray-500'
+                  }`}></div>
+                  <span className="text-[7px] text-gray-400 font-mono">IN TUNE</span>
+                  <div className={`w-1 h-1 rounded-full transition-all duration-300 ${
+                    isInTune ? 'bg-green-400 animate-pulse scale-125' : 'bg-gray-500'
+                  }`}></div>
+                </div>
+              </div>
+
+              {/* COMPACT CONTROLS & OSCILLOSCOPE */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 items-center ">
+                {/* Toggle Switch Area */}
+                <div className="col-span-1 flex flex-col items-center">
+                  <button 
+                    onClick={isListening ? stopTuner : startTuner}
+                    className={`animate-pulse w-10 h-10 rounded-full border-2 shadow-md flex items-center justify-center transition-all active:scale-95 ${
+                      isListening 
+                      ? 'bg-stone-800 border-green-500/50 text-green-500 shadow-[0_0_8px_rgba(34,197,94,0.3)]' 
+                      : 'bg-stone-300 border-stone-400 text-stone-500'
+                    }`}
+                  >
+                    {isListening ? (
+                      <StopIcon className="w-3 h-3" />
+                    ) : (
+                      <MicrophoneIcon className="w-3 h-3" />
+                    )}
+                  </button>
+                  <span className="text-[7px] font-bold text-white uppercase mt-1 tracking-widest">
+                    {isListening ? 'ON' : 'START'}
+                  </span>
+                </div>
+
+                {/* COMPACT Oscilloscope Screen */}
+                <div className="col-span-2 bg-black rounded border border-stone-600 overflow-hidden h-10 relative shadow-inner">
+                  <canvas ref={canvasRef} width={200} height={40} className="w-full h-full opacity-80" />
+                  <div className="absolute top-0.5 right-0.5 text-[4px] text-green-500/50 font-mono">SIG</div>
+                  <div className="absolute bottom-0.5 left-0.5 text-[4px] text-stone-500 font-mono">
+                    {isListening ? 'ANALYZING' : 'READY'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Compact Status Indicators */}
+              <div className="mt-2 flex justify-center gap-2">
+                <div className="flex items-center gap-0.5">
+                  <div className={`w-1 h-1 rounded-full ${isListening ? 'bg-green-500 animate-pulse' : 'bg-stone-600'}`}></div>
+                  <span className="text-[7px] text-stone-400">MIC</span>
+                </div>
+                <div className="flex items-center gap-0.5">
+                  <div className={`w-1 h-1 rounded-full ${pitch ? 'bg-blue-500' : 'bg-stone-600'}`}></div>
+                  <span className="text-[7px] text-stone-400">SIGNAL</span>
+                </div>
+                <div className="flex items-center gap-0.5">
+                  <div className={`w-1 h-1 rounded-full ${isInTune ? 'bg-green-500 animate-pulse' : 'bg-stone-600'}`}></div>
+                  <span className="text-[7px] text-stone-400">TUNED</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Compact Additional Sections - Now properly visible */}
+          <div className="space-y-2">
+            {/* Tuning Tips */}
+            <div className="bg-stone-800/50 rounded-lg p-2 border border-stone-700/50 backdrop-blur-sm">
+              <h3 className="text-xs font-bold text-white mb-1 flex items-center gap-1">
+                <SignalIcon className="w-3 h-3 text-green-400" />
+                Tuning Guide
+              </h3>
+              <div className="grid grid-cols-2 gap-1 text-[10px] text-stone-300">
+                <div className="space-y-0.5">
+                  <p>• Play any note clearly</p>
+                  <p>• Needle left = Flat</p>
+                  <p>• Red zone = Very out of tune</p>
+                </div>
+                <div className="space-y-0.5">
+                  <p>• Green = Perfect tune</p>
+                  <p>• Needle right = Sharp</p>
+                  <p>• Yellow zone = Close to tune</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Note Reference - Chromatic Scale */}
+            <div className="bg-stone-800/50 rounded-lg p-2 border border-stone-700/50 backdrop-blur-sm">
+              <h3 className="text-xs font-bold text-white mb-1">Chromatic Scale Reference</h3>
+              <div className="grid grid-cols-6 gap-1">
+                {NOTES.map((note) => (
+                  <div key={note} className={`text-center p-1 rounded text-[9px] font-mono ${
+                    note === closestNote && pitch 
+                      ? 'bg-green-500/30 text-green-400 border border-green-500/50' 
+                      : 'bg-stone-700/30 text-stone-400 border border-stone-600'
+                  }`}>
+                    {note}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Current Tuning Info */}
+            <div className="bg-stone-800/50 rounded-lg p-2 border border-stone-700/50 backdrop-blur-sm">
+              <h3 className="text-xs font-bold text-white mb-1">Current Tuning</h3>
+              <div className="grid grid-cols-2 gap-2 text-[10px]">
+                <div className="space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-stone-400">Detected:</span>
+                    <span className="text-white font-mono">{note}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-stone-400">Frequency:</span>
+                    <span className="text-white font-mono">{pitch ? `${pitch.toFixed(1)} Hz` : '-- Hz'}</span>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-stone-400">Cents:</span>
+                    <span className={`font-mono ${isInTune ? 'text-green-400' : isCloseToTune ? 'text-yellow-400' : 'text-red-400'}`}>
+                      {pitch ? `${cents > 0 ? '+' : ''}${cents.toFixed(1)}¢` : '--¢'}
                     </span>
                   </div>
-
-                  {/* Oscilloscope Screen */}
-                  <div className="col-span-2 bg-black rounded-lg border-2 border-stone-600 overflow-hidden h-20 relative shadow-inner">
-                    <canvas ref={canvasRef} width={300} height={80} className="w-full h-full opacity-80" />
-                    <div className="absolute top-1 right-1 text-[6px] text-green-500/50 font-mono">SIGNAL</div>
-                    <div className="absolute bottom-1 left-1 text-[6px] text-stone-500 font-mono">
-                      {isListening ? 'ANALYZING...' : 'READY'}
-                    </div>
+                  <div className="flex justify-between">
+                    <span className="text-stone-400">Status:</span>
+                    <span className={`font-bold ${isInTune ? 'text-green-400' : isCloseToTune ? 'text-yellow-400' : 'text-red-400'}`}>
+                      {isInTune ? 'IN TUNE' : pitch ? 'ADJUSTING' : 'NO SIGNAL'}
+                    </span>
                   </div>
                 </div>
-
-                {/* Status Indicators - Compact */}
-                <div className="mt-4 flex justify-center gap-4">
-                  <div className="flex items-center gap-1">
-                    <div className={`w-2 h-2 rounded-full ${isListening ? 'bg-green-500 animate-pulse' : 'bg-stone-600'}`}></div>
-                    <span className="text-[10px] text-stone-400">MIC</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <div className={`w-2 h-2 rounded-full ${pitch ? 'bg-blue-500' : 'bg-stone-600'}`}></div>
-                    <span className="text-[10px] text-stone-400">SIGNAL</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <div className={`w-2 h-2 rounded-full ${isInTune ? 'bg-green-500' : 'bg-stone-600'}`}></div>
-                    <span className="text-[10px] text-stone-400">TUNED</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Compact Tuning Tips */}
-          <div className="bg-stone-800/50 rounded-xl p-4 border border-stone-700/50 backdrop-blur-sm">
-            <h3 className="text-sm font-bold text-white mb-2 flex items-center gap-2">
-              <SignalIcon className="w-4 h-4 text-green-400" />
-              Tuning Tips
-            </h3>
-            <div className="grid grid-cols-2 gap-2 text-xs text-stone-300">
-              <div className="space-y-1">
-                <p>• Play one string at a time</p>
-                <p>• Ensure good microphone placement</p>
-              </div>
-              <div className="space-y-1">
-                <p>• Green = Perfectly in tune</p>
-                <p>• Needle shows flat/sharp</p>
               </div>
             </div>
           </div>
