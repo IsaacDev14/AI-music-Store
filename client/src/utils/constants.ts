@@ -6,6 +6,7 @@ export const NAVIGATION_PATHS = {
   'Generate Lesson': '/builder/generate',
   
   // Tuner & Tools
+  
   'Instrument Tuner': '/tuner',
   'Metronome': '/metronome',
   'Backing Track Generator': '/backing-track',
