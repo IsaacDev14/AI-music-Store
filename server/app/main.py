@@ -1,24 +1,27 @@
+# app/main.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import users, instruments, lessons, songs, ai
-from app.config import FRONTEND_ORIGINS
 
 app = FastAPI()
 
-# Middleware
+# Allow frontend requests - make sure this is correct
+origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:5174",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=FRONTEND_ORIGINS,
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Routers
-app.include_router(users.router, prefix="/users", tags=["users"])
-app.include_router(instruments.router, prefix="/instruments", tags=["instruments"])
-app.include_router(lessons.router, prefix="/lessons", tags=["lessons"])
-app.include_router(songs.router, prefix="/songs", tags=["songs"])
+# Import and include routers
+from app.routers import ai
+
 app.include_router(ai.router, prefix="/ai", tags=["ai"])
 
 @app.on_event("startup")
@@ -32,3 +35,12 @@ async def shutdown_event():
 @app.get("/")
 async def root():
     return {"message": "Chord Progression API is running!"}
+
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy", "message": "API is running successfully"}
+
+# Add a test endpoint to verify CORS is working
+@app.get("/test-cors")
+async def test_cors():
+    return {"message": "CORS is working!"}

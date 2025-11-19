@@ -1,23 +1,15 @@
-# Load environment variables
-import os
+# app/config.py
 from dotenv import load_dotenv
+import os
 
 load_dotenv()
 
-# --------------------
-# API KEYS
-# --------------------
-GOOGLE_API_KEY = os.getenv("VITE_GEMINI_API_KEY", "")
-AUDD_API_KEY = os.getenv("VITE_AUDD_API_KEY", "")
+DATABASE_URL = os.getenv("DATABASE_URL")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+AUDD_API_KEY = os.getenv("AUDD_API_KEY")
 
-# --------------------
-# CORS SETTINGS
-# --------------------
 FRONTEND_ORIGINS = [
-    "http://localhost:5173",
+    "http://localhost:5173"
 ]
 
-# --------------------
-# DEFAULT SETTINGS
-# --------------------
 DEFAULT_CHORD_KEY = "C"

@@ -1,6 +1,6 @@
 // src/pages/Compose/ChordStudio.tsx
 import React, { useState, useRef } from 'react';
-import { aiApi } from '../../services//apiService';
+import { aiApi } from '../../api/apiService';
 
 // Simple icons using Heroicons
 const SearchIcon = () => (

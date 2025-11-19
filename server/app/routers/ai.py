@@ -1,17 +1,21 @@
 # app/routers/ai.py
 from fastapi import APIRouter, HTTPException
-from app.api.geminiService import generateChordProgression
-from app.schemas import ChordProgressionRequest, ChordProgression
+from pydantic import BaseModel
+from app.api.geminiService import gemini_music_service
 
 router = APIRouter()
 
-@router.post("/chords", response_model=ChordProgression)
-async def generate_chord(request: ChordProgressionRequest):
-    """
-    Generate a chord progression for a given song query.
-    """
+class ChordRequest(BaseModel):
+    songQuery: str
+    simplify: bool = False
+
+@router.post("/chords")
+async def generate_chords(request: ChordRequest):
+    """Generate chord progression for a song"""
     try:
-        result = await generateChordProgression(request)
+        print(f"🎹 Received chord request for: {request.songQuery}")
+        result = await gemini_music_service.generateChordProgression(request)
         return result
     except Exception as e:
+        print(f"💥 Error in /chords endpoint: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
