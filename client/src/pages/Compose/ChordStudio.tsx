@@ -1,69 +1,120 @@
 // src/pages/Compose/ChordStudio.tsx
-import React, { useState, useRef } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
+import { aiApi, type FullDisplayData } from '../../api/apiService';
+import { 
+  MagnifyingGlassIcon, 
+  SparklesIcon, 
+  BookOpenIcon, 
+  AdjustmentsHorizontalIcon,
+  PlayCircleIcon,
+  ArrowPathIcon,
+  InformationCircleIcon,
+  ChevronUpIcon
+} from '@heroicons/react/24/outline';
 
-import { aiApi, type Chord, type Substitution, type ChordProgression } from '../../api/apiService';
+// --- CHORD VISUALIZER HELPERS ---
+type Instrument = 'Guitar' | 'Ukulele';
 
-// Simple icons using Heroicons
-const SearchIcon = () => (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-  </svg>
-);
+const CHORD_SHAPES: Record<string, Record<string, number[]>> = {
+  Guitar: {
+    // [E, A, D, G, B, e] - -1 for mute, 0 for open
+    'C': [-1, 3, 2, 0, 1, 0],
+    'A': [-1, 0, 2, 2, 2, 0],
+    'G': [3, 2, 0, 0, 0, 3],
+    'E': [0, 2, 2, 1, 0, 0],
+    'D': [-1, -1, 0, 2, 3, 2],
+    'Em': [0, 2, 2, 0, 0, 0],
+    'Am': [-1, 0, 2, 2, 1, 0],
+    'Dm': [-1, -1, 0, 2, 3, 1],
+    'F': [1, 3, 3, 2, 1, 1],
+    'Bm': [-1, 2, 4, 4, 3, 2],
+    'Bb': [-1, 1, 3, 3, 3, 1],
+    'Cm': [-1, 3, 5, 5, 4, 3],
+    'Gm': [3, 5, 5, 3, 3, 3],
+    'Fm': [1, 3, 3, 1, 1, 1],
+  },
+  Ukulele: {
+    // [G, C, E, A]
+    'C': [0, 0, 0, 3],
+    'G': [0, 2, 3, 2],
+    'Am': [2, 0, 0, 0],
+    'F': [2, 0, 1, 0],
+    'Em': [0, 4, 3, 2],
+    'Dm': [2, 2, 1, 0],
+    'D': [2, 2, 2, 0],
+    'A': [2, 1, 0, 0],
+    'E': [4, 4, 4, 2], // var
+    'Bm': [4, 2, 2, 2],
+  }
+};
 
-const BarChartIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-  </svg>
-);
+const ChordBox: React.FC<{ chord: string; instrument: Instrument }> = ({ chord, instrument }) => {
+  // Normalize chord name to basic triad/minor for lookup
+  const root = chord.match(/^[A-G][#b]?m?/)?.[0] || chord;
+  
+  // Try exact match, then fallbacks
+  let shape = CHORD_SHAPES[instrument][root];
+  if (!shape) {
+     // Try stripping '7', 'maj', etc if base triad exists
+     const base = root.replace(/maj|dim|aug|sus|7|9|11|13/g, '');
+     shape = CHORD_SHAPES[instrument][base];
+  }
 
-const RefreshCwIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-  </svg>
-);
+  const numStrings = instrument === 'Guitar' ? 6 : 4;
+  const width = 80;
+  const height = 100;
+  const stringSpacing = width / (numStrings - 1);
+  const fretSpacing = height / 5;
 
-const SparklesIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-  </svg>
-);
+  if (!shape) {
+    return (
+      <div className="flex flex-col items-center justify-center p-3 bg-white rounded-xl border border-gray-200 shadow-sm min-w-[100px] h-[140px]">
+        <span className="font-bold text-gray-900 mb-2 text-sm">{chord}</span>
+        <span className="text-[10px] text-gray-400">No Diagram</span>
+      </div>
+    );
+  }
 
-const PlayIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-  </svg>
-);
-
-const PauseIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-  </svg>
-);
-
-interface CheckboxProps {
-  label: string;
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-}
-
-const Checkbox: React.FC<CheckboxProps> = ({ label, checked, onChange }) => (
-  <label className="flex items-center space-x-3 cursor-pointer group">
-    <div 
-      className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
-        checked ? 'bg-indigo-600 border-indigo-600' : 'bg-white border-gray-300 group-hover:border-indigo-400'
-      }`}
-      onClick={() => onChange(!checked)}
-    >
-      {checked && (
-        <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-        </svg>
-      )}
+  return (
+    <div className="flex flex-col items-center p-3 bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 min-w-[120px]">
+      <span className="font-bold text-base text-gray-900 mb-2">{chord}</span>
+      <svg width={width + 10} height={height + 10} viewBox={`-5 -5 ${width + 10} ${height + 10}`} className="bg-white overflow-visible">
+        {/* Nut */}
+        <line x1="0" y1="0" x2={width} y2="0" stroke="#1f2937" strokeWidth="3" />
+        
+        {/* Frets */}
+        {[1, 2, 3, 4, 5].map(i => (
+           <line key={`f-${i}`} x1="0" y1={i * fretSpacing} x2={width} y2={i * fretSpacing} stroke="#e5e7eb" strokeWidth="2" />
+        ))}
+        
+        {/* Strings */}
+        {Array.from({ length: numStrings }).map((_, i) => (
+           <line key={`s-${i}`} x1={i * stringSpacing} y1="0" x2={i * stringSpacing} y2={height} stroke="#374151" strokeWidth="1" />
+        ))}
+        
+        {/* Dots & Markers */}
+        {shape.map((fret, stringIdx) => {
+           const cx = stringIdx * stringSpacing;
+           if (fret === -1) {
+              return <text key={stringIdx} x={cx} y="-6" textAnchor="middle" fontSize="10" fontWeight="bold" fill="#ef4444">×</text>;
+           }
+           if (fret === 0) {
+              return <circle key={stringIdx} cx={cx} cy="-6" r="2.5" stroke="#374151" strokeWidth="1" fill="none" />;
+           }
+           return (
+              <circle 
+                key={stringIdx} 
+                cx={cx} 
+                cy={(fret * fretSpacing) - (fretSpacing / 2)} 
+                r="5.5" 
+                fill="#2563eb" 
+              />
+           );
+        })}
+      </svg>
     </div>
-    <span className="text-sm text-gray-700 font-medium select-none">{label}</span>
-  </label>
-);
+  );
+};
 
 // Audio Synthesis Logic
 const NOTE_FREQUENCIES: Record<string, number> = {
@@ -109,23 +160,164 @@ const playChord = (ctx: AudioContext, chordName: string, time: number, duration:
   });
 };
 
-// FIXED: ProgressionDisplay with full safety guards
-const ProgressionDisplay: React.FC<{ progression: ChordProgression }> = ({ progression }) => {
+// Helper function to format chord sheets with proper alignment
+const formatChordSheet = (songData: FullDisplayData): string => {
+  let formattedResult = '';
+  
+  // Header information
+  formattedResult += `${songData.songTitle}\n`;
+  if (songData.artist) {
+    formattedResult += `Artist: ${songData.artist}\n`;
+  }
+  formattedResult += `Tuning: ${songData.tuning}\n`;
+  formattedResult += `Key: ${songData.key}\n`;
+  formattedResult += `${songData.capo || 'Capo: no capo'}\n\n`;
+
+  // Use tablature if available, otherwise create from progression
+  if (songData.tablature && songData.tablature.length > 0) {
+    songData.tablature.forEach((section: { section: string; lines: Array<{ lyrics: string; isChordLine: boolean }> }) => {
+      formattedResult += `[${section.section}]\n\n`;
+      
+      section.lines.forEach((line: { lyrics: string; isChordLine: boolean }) => {
+        if (line.isChordLine) {
+          formattedResult += `${line.lyrics}\n`;
+        } else {
+          formattedResult += `${line.lyrics}\n\n`;
+        }
+      });
+    });
+  } else {
+    // Fallback: Create basic structure from progression
+    formattedResult += `[Intro]\n\n`;
+    
+    // Show first 4 chords as intro
+    const introChords = songData.progression.slice(0, Math.min(4, songData.progression.length));
+    formattedResult += introChords.map((chord: { chord: string }) => chord.chord).join(' ') + '\n\n';
+    
+    // Create verse section
+    formattedResult += `[Verse]\n\n`;
+    const verseChords = songData.progression.slice(4, Math.min(8, songData.progression.length));
+    
+    verseChords.forEach((chord: { chord: string }, index: number) => {
+      const sampleLyrics = [
+        "In the quiet of the morning light",
+        "When the world is still and calm",
+        "There's a melody that fills the air",
+        "Like a gentle healing balm"
+      ];
+      
+      formattedResult += `${chord.chord.padEnd(12, ' ')}\n`;
+      formattedResult += `${sampleLyrics[index] || "Lyrics line here"}\n\n`;
+    });
+  }
+
+  return formattedResult;
+};
+
+const ChordStudio: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<'search' | 'compose'>('search');
+  const [selectedInstrument, setSelectedInstrument] = useState<Instrument>('Guitar');
+  const [isVisualizerOpen, setIsVisualizerOpen] = useState(true);
+
+  // Compose State
+  const [mood, setMood] = useState('Melancholic');
+  const [genre, setGenre] = useState('Lo-Fi Hip Hop');
+  const [composeResult, setComposeResult] = useState<FullDisplayData | null>(null);
+  const [loadingCompose, setLoadingCompose] = useState(false);
+
+  // Search State
+  const [songQuery, setSongQuery] = useState('');
+  const [artistQuery, setArtistQuery] = useState('');
+  const [songResult, setSongResult] = useState<FullDisplayData | null>(null);
+  const [theoryAnalysis, setTheoryAnalysis] = useState<string>('');
+  const [loadingSearch, setLoadingSearch] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+
+  // Audio playback
   const [isPlaying, setIsPlaying] = useState(false);
   const audioCtxRef = useRef<AudioContext | null>(null);
 
-  // ← THIS IS THE ONLY FIX THAT MATTERS
-  if (!progression || !progression.progression || !Array.isArray(progression.progression)) {
-    return (
-      <div className="p-12 text-center bg-gray-50 rounded-lg border border-gray-200">
-        <p className="text-lg font-medium text-gray-700">No chord progression available</p>
-        <p className="text-sm text-gray-500 mt-2">The server returned incomplete data. Please try generating again.</p>
-      </div>
-    );
-  }
+  // Extract Chords for visualization
+  const extractedChords = useMemo(() => {
+    const data = activeTab === 'search' ? songResult : composeResult;
+    if (!data?.progression) return [];
+    
+    const chordRegex = /\b[A-G][#b]?(?:m|maj|dim|aug|sus|add)?(?:7|9|11|13|6)?(?:(?:\/)[A-G][#b]?)?\b/g;
+    const allChords = data.progression.map((p: { chord: string }) => p.chord).join(' ');
+    const found = allChords.match(chordRegex) || [];
+    return [...new Set(found)];
+  }, [songResult, composeResult, activeTab]);
+
+  const handleCompose = async () => {
+    setLoadingCompose(true);
+    try {
+      const result = await aiApi.generateSongArrangement({
+        songQuery: `${mood} ${genre} progression`,
+        simplify: true,
+        helpPractice: true,
+        showSubstitutions: true,
+        instrument: 'Guitar'
+      });
+      setComposeResult(result);
+    } catch (error) {
+      console.error('Failed to generate progression:', error);
+    } finally {
+      setLoadingCompose(false);
+    }
+  };
+
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!songQuery) return;
+    setLoadingSearch(true);
+    setSongResult(null);
+    setTheoryAnalysis('');
+    try {
+      const result = await aiApi.generateSongArrangement({
+        songQuery: songQuery,
+        artist: artistQuery || undefined,
+        simplify: true,
+        helpPractice: true,
+        showSubstitutions: true,
+        instrument: 'Guitar',
+        includeLyrics: true
+      });
+      setSongResult(result);
+    } catch (error) {
+      console.error('Failed to search song:', error);
+    } finally {
+      setLoadingSearch(false);
+    }
+  };
+
+  const handleAnalyze = async () => {
+    if (!songResult) return;
+    setAnalyzing(true);
+    try {
+      const chords = extractedChords;
+      const chordCount = chords.length;
+      const hasMinor = chords.some((chord: string) => chord.includes('m') && !chord.includes('maj'));
+      const hasSeventh = chords.some((chord: string) => chord.includes('7'));
+      const hasSuspended = chords.some((chord: string) => chord.includes('sus'));
+      
+      let analysis = `This song uses ${chordCount} unique chords: ${chords.join(', ')}. `;
+      analysis += `The progression features ${hasMinor ? 'both major and minor chords' : 'mostly major chords'}`;
+      analysis += hasSeventh ? ' with some seventh chords adding harmonic color. ' : '. ';
+      analysis += hasSuspended ? 'Suspended chords create tension and release. ' : '';
+      analysis += `The chord choices create a ${mood.toLowerCase()} feeling typical of ${genre} music.`;
+      
+      setTheoryAnalysis(analysis);
+    } catch (error) {
+      console.error('Failed to analyze:', error);
+      setTheoryAnalysis('Unable to analyze music theory at this time.');
+    } finally {
+      setAnalyzing(false);
+    }
+  };
 
   const handlePlay = async () => {
-    if (isPlaying) return;
+    const data = activeTab === 'search' ? songResult : composeResult;
+    if (isPlaying || !data?.progression) return;
     
     if (!audioCtxRef.current) {
       audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -138,7 +330,7 @@ const ProgressionDisplay: React.FC<{ progression: ChordProgression }> = ({ progr
     let currentTime = now;
     const beatDuration = 0.6;
 
-    progression.progression.forEach((chord) => {
+    data.progression.forEach((chord: { chord: string; duration: number }) => {
       const duration = chord.duration * beatDuration;
       playChord(ctx, chord.chord, currentTime, duration);
       currentTime += duration;
@@ -148,240 +340,327 @@ const ProgressionDisplay: React.FC<{ progression: ChordProgression }> = ({ progr
     setTimeout(() => setIsPlaying(false), totalDuration);
   };
 
-  return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-end border-b border-gray-200 pb-4">
-        <div>
-          <h2 className="text-xl font-bold text-gray-800">{progression.songTitle}</h2>
-          <p className="text-sm text-gray-500">by {progression.artist} • Key of {progression.key}</p>
+  // Function to render chord sheet with proper formatting
+  const renderChordSheet = (text: string) => {
+    return text.split('\n').map((line, i) => {
+      // Check if line contains chords (has chord characters but might be mixed with lyrics)
+      const hasChords = /[A-G][#b]?(m|maj|dim|sus|7|9|add|aug)?/.test(line);
+      const isSectionHeader = line.trim().startsWith('[') && line.trim().endsWith(']');
+      const isMetadata = line.includes('Key:') || line.includes('Capo:') || line.includes('Artist:') || line.includes('Tuning:');
+      
+      let className = "font-mono text-sm md:text-base leading-relaxed ";
+      
+      if (isSectionHeader) {
+        className += "font-bold text-gray-900 text-lg mt-6 mb-2 uppercase tracking-wide";
+      } else if (isMetadata) {
+        className += "text-gray-600 font-medium";
+      } else if (hasChords && !line.trim().match(/[a-z]/)) {
+        // Line with only chords (no lowercase letters)
+        className += "text-blue-600 font-bold tracking-widest text-lg";
+      } else if (hasChords) {
+        // Line with chords and possibly lyrics
+        className += "text-blue-600 font-bold";
+      } else if (line.trim() === '') {
+        // Empty line
+        return <div key={i} className="h-4"></div>;
+      } else {
+        // Regular lyrics
+        className += "text-gray-800";
+      }
+      
+      return (
+        <div key={i} className={className}>
+          {line || '\u00A0'}
         </div>
-        <button 
-          onClick={handlePlay}
-          disabled={isPlaying}
-          className={`flex items-center gap-2 px-3 py-1.5 text-sm rounded-full font-semibold transition-all ${
-            isPlaying ? 'bg-gray-100 text-gray-400' : 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'
-          }`}
-        >
-          {isPlaying ? <PauseIcon /> : <PlayIcon />}
-          {isPlaying ? 'Playing...' : 'Play'}
-        </button>
-      </div>
+      );
+    });
+  };
 
-      <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-        <h3 className="text-xs uppercase font-bold text-gray-400 mb-3 tracking-wider">Chord Sequence</h3>
-        <div className="flex flex-wrap gap-3">
-          {progression.progression.map((chord, index) => (
-            <div 
-              key={index} 
-              className="bg-white border border-indigo-100 text-indigo-900 rounded-lg px-4 py-3 shadow-sm hover:shadow-md hover:border-indigo-300 transition-all cursor-default"
+  const currentData = activeTab === 'search' ? songResult : composeResult;
+
+  return (
+    <div className="flex flex-col h-screen bg-gray-50 overflow-hidden font-sans relative">
+      
+      {/* HEADER */}
+      <header className="flex-none bg-white border-b border-gray-200 px-8 py-4 flex items-center justify-between shadow-sm z-10">
+         <div className="flex items-center gap-4">
+            <div className="bg-indigo-100 p-2 rounded-lg">
+               {activeTab === 'search' ? <MagnifyingGlassIcon className="w-6 h-6 text-indigo-600" /> : <SparklesIcon className="w-6 h-6 text-purple-600" />}
+            </div>
+            <div>
+               <h1 className="text-xl font-bold text-gray-900">{activeTab === 'search' ? 'Song Library' : 'AI Composer'}</h1>
+               <p className="text-xs text-gray-500 font-medium">Powered by AI</p>
+            </div>
+         </div>
+
+         {/* Tab Switcher */}
+         <div className="bg-gray-100 p-1 rounded-xl flex font-medium text-sm">
+            <button 
+               onClick={() => setActiveTab('search')}
+               className={`px-4 py-2 rounded-lg transition-all ${activeTab === 'search' ? 'bg-white text-gray-900 shadow-sm font-bold' : 'text-gray-500 hover:text-gray-700'}`}
             >
-              <span className="block text-xl font-bold">{chord.chord}</span>
-              <span className="block text-xs text-indigo-400 mt-1">{chord.duration} beats</span>
-            </div>
-          ))}
-        </div>
-      </div>
+               Find Chords
+            </button>
+            <button 
+               onClick={() => setActiveTab('compose')}
+               className={`px-4 py-2 rounded-lg transition-all ${activeTab === 'compose' ? 'bg-white text-gray-900 shadow-sm font-bold' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+               Generate New
+            </button>
+         </div>
+      </header>
 
-      <div className="grid md:grid-cols-2 gap-6">
-        {Array.isArray(progression.substitutions) && progression.substitutions.length > 0 && (
-          <div>
-            <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-800 mb-3">
-              <RefreshCwIcon />
-              Try These Substitutions
-            </h3>
-            <div className="space-y-3">
-              {progression.substitutions.map((sub, index) => (
-                <div key={index} className="p-3 bg-white rounded border border-gray-100 hover:border-indigo-200 transition-colors">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="line-through text-gray-400 text-xs font-medium">{sub.originalChord}</span>
-                    <span className="text-gray-400">→</span>
-                    <span className="text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded text-xs">{sub.substitutedChord}</span>
+      {/* MAIN SCROLLABLE CONTENT */}
+      <div className="flex-1 overflow-y-auto p-6 md:p-8 scrollbar-thin scrollbar-thumb-gray-200">
+         
+         {/* --- SEARCH MODE --- */}
+         {activeTab === 'search' && (
+            <div className="h-full max-w-6xl mx-auto space-y-8 animate-fade-in">
+               {/* Search Bar */}
+               <form onSubmit={handleSearch} className="bg-white p-2 rounded-2xl shadow-lg border border-gray-100 flex flex-col md:flex-row gap-2">
+                  <input 
+                     type="text" 
+                     placeholder="Song Title..." 
+                     value={songQuery}
+                     onChange={e => setSongQuery(e.target.value)}
+                     className="flex-1 p-3 bg-transparent border-none focus:ring-0 text-gray-900 placeholder-gray-400 font-medium"
+                  />
+                  <div className="w-px bg-gray-200 hidden md:block my-2"></div>
+                  <input 
+                     type="text" 
+                     placeholder="Artist Name (optional)..." 
+                     value={artistQuery}
+                     onChange={e => setArtistQuery(e.target.value)}
+                     className="flex-1 p-3 bg-transparent border-none focus:ring-0 text-gray-900 placeholder-gray-400 font-medium"
+                  />
+                  <button 
+                     type="submit" 
+                     disabled={loadingSearch}
+                     className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 rounded-xl font-bold shadow-md transition-transform active:scale-95 disabled:opacity-50 disabled:scale-100"
+                  >
+                     {loadingSearch ? 'Searching...' : 'Search'}
+                  </button>
+               </form>
+
+               {songResult ? (
+                  <div className="space-y-6">
+                     <div className="flex items-center justify-between">
+                        <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                           <BookOpenIcon className="w-5 h-5" /> 
+                           Chord Sheet: {songResult.songTitle}
+                        </h2>
+                        <div className="flex gap-2">
+                           <button 
+                              onClick={handlePlay}
+                              disabled={isPlaying}
+                              className="text-indigo-600 text-sm font-bold hover:bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-2"
+                           >
+                              <PlayCircleIcon className="w-4 h-4" />
+                              {isPlaying ? 'Playing...' : 'Play'}
+                           </button>
+                           {!theoryAnalysis && (
+                              <button 
+                                 onClick={handleAnalyze} 
+                                 disabled={analyzing}
+                                 className="text-indigo-600 text-sm font-bold hover:bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors"
+                              >
+                                 {analyzing ? 'Analyzing...' : 'Analyze Theory'}
+                              </button>
+                           )}
+                        </div>
+                     </div>
+
+                     {theoryAnalysis && (
+                        <div className="bg-indigo-50 border border-indigo-100 p-6 rounded-2xl text-indigo-900">
+                           <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-400 mb-2 flex items-center gap-2">
+                              <InformationCircleIcon className="w-4 h-4" /> Music Theory Analysis
+                           </h3>
+                           <p className="leading-relaxed">{theoryAnalysis}</p>
+                        </div>
+                     )}
+
+                     <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-8 md:p-12 relative min-h-[500px] font-mono">
+                        {/* Paper texture effect */}
+                        <div className="absolute top-0 left-0 w-full h-2 bg-linear-to-b from-gray-100 to-transparent opacity-50"></div>
+                        <div className="space-y-1">
+                           {renderChordSheet(formatChordSheet(songResult))}
+                        </div>
+                     </div>
                   </div>
-                  <p className="text-xs text-gray-600 leading-relaxed">{sub.theory}</p>
-                </div>
-              ))}
+               ) : (
+                  <div className="text-center py-20 opacity-50">
+                     <MagnifyingGlassIcon className="w-24 h-24 mx-auto mb-4 text-gray-300" />
+                     <p className="text-gray-400 font-medium">Enter a song title to get chords & lyrics</p>
+                  </div>
+               )}
             </div>
-          </div>
-        )}
-        
-        {Array.isArray(progression.practiceTips) && progression.practiceTips.length > 0 && (
-          <div>
-            <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-800 mb-3">
-              <SparklesIcon />
-              Practice Tips
-            </h3>
-            <ul className="space-y-2">
-              {progression.practiceTips.map((tip, index) => (
-                <li key={index} className="flex items-start gap-2 text-gray-700 text-xs bg-white p-2 rounded border border-gray-100">
-                  <span className="shrink-0 w-5 h-5 flex items-center justify-center rounded-full bg-yellow-100 text-yellow-700 font-bold text-xs">
-                    {index + 1}
-                  </span>
-                  <span className="mt-0.5">{tip}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+         )}
+
+         {/* --- COMPOSE MODE --- */}
+         {activeTab === 'compose' && (
+            <div className="h-full max-w-6xl mx-auto space-y-8 animate-fade-in">
+               
+               {/* Controls */}
+               <div className="bg-white p-6 md:p-8 rounded-2xl shadow-lg border border-gray-100">
+                  <h2 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
+                     <AdjustmentsHorizontalIcon className="w-5 h-5 text-purple-500" /> Progression Settings
+                  </h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                     <div>
+                        <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Musical Genre</label>
+                        <input 
+                           type="text" 
+                           value={genre} 
+                           onChange={e => setGenre(e.target.value)}
+                           className="w-full p-4 bg-gray-50 border-gray-200 rounded-xl text-gray-900 font-bold focus:ring-purple-500 focus:border-purple-500"
+                        />
+                     </div>
+                     <div>
+                        <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Emotional Mood</label>
+                        <input 
+                           type="text" 
+                           value={mood} 
+                           onChange={e => setMood(e.target.value)}
+                           className="w-full p-4 bg-gray-50 border-gray-200 rounded-xl text-gray-900 font-bold focus:ring-purple-500 focus:border-purple-500"
+                        />
+                     </div>
+                  </div>
+                  <button 
+                     onClick={handleCompose}
+                     disabled={loadingCompose}
+                     className="w-full bg-linear-to-r from-purple-600 to-indigo-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg shadow-purple-200 hover:shadow-xl transition-all transform active:scale-[0.99] flex items-center justify-center gap-2"
+                  >
+                     {loadingCompose ? <ArrowPathIcon className="w-6 h-6 animate-spin" /> : <SparklesIcon className="w-6 h-6" />}
+                     {loadingCompose ? 'Composing...' : 'Generate Progression'}
+                  </button>
+               </div>
+
+               {composeResult && (
+                  <div className="space-y-6">
+                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        {/* Key Info Card */}
+                        <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex flex-col justify-center items-center text-center">
+                           <div className="text-sm text-gray-400 font-bold uppercase tracking-wider mb-1">Key</div>
+                           <div className="text-3xl font-black text-gray-900">{composeResult.key}</div>
+                        </div>
+                         {/* Tempo Info Card */}
+                        <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex flex-col justify-center items-center text-center">
+                           <div className="text-sm text-gray-400 font-bold uppercase tracking-wider mb-1">Tempo</div>
+                           <div className="text-3xl font-black text-gray-900">120 <span className="text-sm text-gray-400 font-normal">BPM</span></div>
+                        </div>
+                        {/* Play Button (Visual) */}
+                        <button 
+                          onClick={handlePlay}
+                          disabled={isPlaying}
+                          className="bg-gray-900 text-white rounded-2xl shadow-lg hover:bg-black transition-colors flex flex-col items-center justify-center p-4 group disabled:opacity-50"
+                        >
+                           <PlayCircleIcon className="w-10 h-10 mb-2 group-hover:scale-110 transition-transform" />
+                           <span className="text-sm font-bold">{isPlaying ? 'Playing...' : 'Play Preview'}</span>
+                        </button>
+                     </div>
+
+                     {/* Chord Sheet Display */}
+                     <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-8 md:p-12 relative min-h-[500px] font-mono">
+                        <div className="absolute top-0 left-0 w-full h-2 bg-linear-to-b from-gray-100 to-transparent opacity-50"></div>
+                        <div className="space-y-1">
+                           {renderChordSheet(formatChordSheet(composeResult))}
+                        </div>
+                     </div>
+
+                     {/* Substitutions */}
+                     {composeResult.substitutions && composeResult.substitutions.length > 0 && (
+                        <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
+                           <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">Chord Substitutions</h3>
+                           <div className="grid md:grid-cols-2 gap-4">
+                              {composeResult.substitutions.map((sub: { originalChord: string; substitutedChord: string; theory: string }, index: number) => (
+                                 <div key={index} className="p-4 bg-gray-50 rounded-lg border border-gray-100">
+                                    <div className="flex items-center gap-2 mb-2">
+                                       <span className="line-through text-gray-500 text-sm">{sub.originalChord}</span>
+                                       <span className="text-gray-400">→</span>
+                                       <span className="text-indigo-600 font-bold bg-indigo-50 px-2 py-1 rounded">{sub.substitutedChord}</span>
+                                    </div>
+                                    <p className="text-sm text-gray-600">{sub.theory}</p>
+                                 </div>
+                              ))}
+                           </div>
+                        </div>
+                     )}
+
+                     {/* Practice Tips */}
+                     {composeResult.practiceTips && composeResult.practiceTips.length > 0 && (
+                        <div className="bg-purple-50 border border-purple-100 p-6 rounded-2xl">
+                           <h3 className="text-purple-900 font-bold text-lg mb-3">Practice Tips</h3>
+                           <ul className="space-y-2">
+                              {composeResult.practiceTips.map((tip: string, index: number) => (
+                                 <li key={index} className="flex items-start gap-3 text-purple-800">
+                                    <span className="shrink-0 w-6 h-6 flex items-center justify-center rounded-full bg-purple-100 text-purple-600 font-bold text-sm mt-0.5">
+                                       {index + 1}
+                                    </span>
+                                    <span>{tip}</span>
+                                 </li>
+                              ))}
+                           </ul>
+                        </div>
+                     )}
+                  </div>
+               )}
+            </div>
+         )}
       </div>
-    </div>
-  );
-};
 
-const ChordStudio: React.FC = () => {
-  const [search, setSearch] = useState('');
-  const [simplify, setSimplify] = useState(true);
-  const [useBackingTrack, setUseBackingTrack] = useState(true);
-  const [helpPractice, setHelpPractice] = useState(true);
-  const [showSubstitutions, setShowSubstitutions] = useState(true);
-
-  const [progression, setProgression] = useState<ChordProgression | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  
-  const handleGenerate = async () => {
-    if (!search.trim()) {
-      setError("Please enter a song title to generate a progression.");
-      return;
-    }
-    
-    setIsLoading(true);
-    setError(null);
-    setProgression(null);
-
-    try {
-      const result = await aiApi.generateSongArrangement({
-        songQuery: search,
-        simplify,
-        helpPractice,
-        showSubstitutions,
-        instrument: 'Guitar' 
-      });
-      setProgression(result);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to generate progression. Please try again.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleClear = () => {
-    setSearch('');
-    setProgression(null);
-    setError(null);
-  };
-
-  return (
-    <div className="h-full overflow-y-auto">
-      <div className="max-w-5xl mx-auto p-6">
-        <header className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">
-            Chord Progression Generator
-          </h1>
-          <p className="text-sm text-gray-500">
-            Enter a song title to get chords, substitutions, and practice tips.
-          </p>
-        </header>
-
-        <div className="bg-white rounded-lg border border-gray-200 mb-6">
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <SearchIcon />
-            </div>
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && !isLoading && handleGenerate()}
-              placeholder="Search for a song (e.g., 'Imagine', 'Let it Be')..."
-              className="w-full pl-10 pr-32 py-3 text-sm bg-transparent border-none focus:ring-0 text-gray-900 placeholder-gray-400"
-            />
-            <div className="absolute inset-y-1 right-1">
-              <button
-                onClick={handleGenerate}
-                disabled={isLoading || !search}
-                className="h-full px-6 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all text-sm"
-              >
-                {isLoading ? (
-                  <span className="flex items-center gap-2">
-                    <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                    Thinking...
-                  </span>
-                ) : 'Generate'}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid md:grid-cols-12 gap-6">
-          <div className="md:col-span-3 space-y-4">
-            <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
-              <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Customization</h3>
-              <div className="space-y-3">
-                <Checkbox label="Simplify Chords" checked={simplify} onChange={setSimplify} />
-                <Checkbox label="Play Audio Preview" checked={useBackingTrack} onChange={setUseBackingTrack} /> 
-              </div>
+      {/* BOTTOM VISUALIZER PANEL */}
+      <div className={`bg-white border-t border-gray-200 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)] z-40 transition-all duration-300 ease-in-out flex flex-col shrink-0 ${isVisualizerOpen ? 'h-64' : 'h-12'}`}>
+         
+         {/* Header Bar */}
+         <div 
+            className="h-12 px-6 flex items-center justify-between cursor-pointer bg-gray-50 hover:bg-gray-100 border-b border-gray-200 transition-colors"
+            onClick={() => setIsVisualizerOpen(!isVisualizerOpen)}
+         >
+            {/* Title */}
+            <div className="flex items-center gap-2">
+               <ChevronUpIcon className={`w-4 h-4 text-gray-500 transition-transform duration-300 ${isVisualizerOpen ? 'rotate-180' : ''}`} />
+               <span className="text-xs font-bold text-gray-700 uppercase tracking-widest">Chord Visualizer</span>
+               {extractedChords.length > 0 && <span className="text-[10px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-bold">{extractedChords.length}</span>}
             </div>
 
-            <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
-              <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">AI Output</h3>
-              <div className="space-y-3">
-                <Checkbox label="Practice Tips" checked={helpPractice} onChange={setHelpPractice} />
-                <Checkbox label="Theory Substitutions" checked={showSubstitutions} onChange={setShowSubstitutions} />
-              </div>
+            {/* Instrument Toggle */}
+            <div className="flex items-center gap-3" onClick={e => e.stopPropagation()}>
+               <span className="text-[10px] font-bold text-gray-400 uppercase hidden sm:inline-block">Instrument:</span>
+               <div className="flex bg-white border border-gray-200 p-0.5 rounded-lg shadow-sm">
+                  <button 
+                     onClick={() => setSelectedInstrument('Guitar')}
+                     className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${selectedInstrument === 'Guitar' ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}
+                  >
+                     Guitar
+                  </button>
+                  <button 
+                     onClick={() => setSelectedInstrument('Ukulele')}
+                     className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${selectedInstrument === 'Ukulele' ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}
+                  >
+                     Ukulele
+                  </button>
+               </div>
             </div>
-            
-            <div className="flex flex-col space-y-2">
-              <button className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded hover:bg-gray-50 hover:text-indigo-600 transition-colors">
-                <BarChartIcon />
-                View History
-              </button>
-              <button 
-                onClick={handleClear}
-                className="flex items-center gap-2 px-3 py-2 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded hover:bg-gray-50 hover:text-indigo-600 transition-colors"
-              >
-                <RefreshCwIcon />
-                Clear Results
-              </button>
-            </div>
-          </div>
+         </div>
 
-          <div className="md:col-span-9">
-            {isLoading && (
-              <div className="flex flex-col items-center justify-center py-12 text-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-4 border-indigo-100 border-t-indigo-600 mb-4"></div>
-                <h3 className="text-base font-semibold text-gray-800">Composing your lesson...</h3>
-                <p className="text-gray-500 text-sm mt-1">Analyzing harmony and generating tips</p>
-              </div>
-            )}
-
-            {error && (
-              <div className="p-4 bg-red-50 border border-red-200 text-red-800 rounded-lg flex items-start gap-3">
-                <div className="p-1 bg-red-100 rounded-full text-red-600 shrink-0">
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <div>
-                  <strong className="block font-bold text-sm mb-1">Generation Failed</strong>
-                  <span className="block opacity-90 text-xs">{error}</span>
-                </div>
-              </div>
-            )}
-
-            {!isLoading && !error && !progression && (
-              <div className="flex flex-col items-center justify-center py-12 border-2 border-dashed border-gray-200 rounded-lg text-center">
-                <div className="p-3 bg-indigo-50 rounded-full text-indigo-400 mb-3">
-                  <SparklesIcon />
-                </div>
-                <h3 className="text-base font-medium text-gray-900">Ready to Create</h3>
-                <p className="text-gray-500 text-xs mt-1 max-w-sm">Enter a song above to generate a chord chart and practice guide.</p>
-              </div>
-            )}
-
-            {progression && <ProgressionDisplay progression={progression} />}
-          </div>
-        </div>
+         {/* Scrollable Content */}
+         {isVisualizerOpen && (
+             <div className="flex-1 overflow-x-auto p-4 flex items-center gap-4 bg-white scrollbar-thin scrollbar-thumb-gray-200">
+                {extractedChords.length > 0 ? (
+                    extractedChords.map((chord: string) => (
+                       <div key={chord} className="shrink-0 transition-transform hover:-translate-y-1">
+                          <ChordBox chord={chord} instrument={selectedInstrument} />
+                       </div>
+                    ))
+                ) : (
+                    <div className="w-full flex flex-col items-center justify-center text-gray-400">
+                       <p className="text-sm font-medium">Select a song or generate a progression to see chords</p>
+                    </div>
+                )}
+             </div>
+         )}
       </div>
+
     </div>
   );
 };

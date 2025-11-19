@@ -6,7 +6,6 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
-// Keep your types exactly as they were (your UI depends on this shape)
 export interface Chord {
   chord: string;
   duration: number;
@@ -18,47 +17,59 @@ export interface Substitution {
   theory: string;
 }
 
-export interface ChordProgression {
+// New types for full tablature
+export interface TabLine {
+  lyrics: string;
+  isChordLine: boolean;
+}
+
+export interface TabSection {
+  section: string;
+  lines: TabLine[];
+}
+
+export interface ChordDiagram {
+  chord: string;
+  frets: (number | 'X')[];
+  fingers: (number | null)[];
+  capoFret: number;
+}
+
+// Final type your UI uses
+export interface FullDisplayData {
   songTitle: string;
   artist: string;
   key: string;
+  tuning: string;
+  capo?: string;
   progression: Chord[];
+  tablature: TabSection[];
+  chordDiagrams: ChordDiagram[];
   substitutions: Substitution[];
   practiceTips: string[];
 }
 
-export interface SongArrangementRequest {
-  songQuery: string;
-  simplify?: boolean;
-  helpPractice?: boolean;
-  showSubstitutions?: boolean;
-  instrument?: 'Guitar' | 'Ukulele' | 'Piano';
-}
-
-// THIS IS THE ONLY CHANGE — FULLY DYNAMIC
 export const aiApi = {
-  generateSongArrangement: async (query: SongArrangementRequest): Promise<ChordProgression> => {
+  generateSongArrangement: async (query: any): Promise<FullDisplayData> => {
     const res = await api.post('/ai/chords', query);
-    const data = res.data;  // This can be ANY shape from Grok or Gemini
+    const data = res.data;  // Can be ANY shape from Grok or Gemini
 
-    // AI can return anything → we normalize it safely to what your UI expects
+    // Extract progression from various possible sources
+    const rawProgression = data.progression || 
+                          data.progressionSummary?.map((c: string) => ({ chord: c, duration: 4 })) || 
+                          [];
+
     return {
       songTitle: data.songTitle || data.title || query.songQuery || "Unknown Song",
-      artist: data.artist || data.Artist || "Unknown Artist",
-      key: data.key || data.Key || "C Major",
-      progression: 
-        data.progression?.length > 0 
-          ? data.progression 
-          : (data.progressionSummary || ["C", "G", "Am", "F"]).map((chord: string) => ({
-              chord,
-              duration: 4  // default duration if not provided
-            })),
+      artist: data.artist || "Unknown Artist",
+      key: data.key || "C Major",
+      tuning: data.tuning || "E A D G B E",
+      capo: data.capoFret > 0 ? `Capo on fret ${data.capoFret}` : "No capo",
+      progression: Array.isArray(rawProgression) ? rawProgression : [],
+      tablature: Array.isArray(data.tablature) ? data.tablature : [],
+      chordDiagrams: Array.isArray(data.chordDiagrams) ? data.chordDiagrams : [],
       substitutions: Array.isArray(data.substitutions) ? data.substitutions : [],
-      practiceTips: Array.isArray(data.practiceTips) 
-        ? data.practiceTips 
-        : Array.isArray(data.tips) 
-          ? data.tips 
-          : ["Practice slowly at first"],
+      practiceTips: Array.isArray(data.practiceTips) ? data.practiceTips : [],
     };
   },
 };
