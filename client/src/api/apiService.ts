@@ -2,9 +2,10 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: 'https://ai-music-store.onrender.com',
+  baseURL: import.meta.env.VITE_API_BASE_URL,
   headers: { 'Content-Type': 'application/json' },
 });
+
 
 /* ==================== INTERFACES ==================== */
 export interface Chord {
