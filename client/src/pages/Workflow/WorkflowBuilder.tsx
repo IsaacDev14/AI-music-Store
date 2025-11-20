@@ -194,7 +194,7 @@ const WorkflowBuilder: React.FC = () => {
                   {/* Generating State */}
                   {isGenerating && (
                     <div className="text-center py-20">
-                      <div className="w-24 h-24 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-full inline-flex items-center justify-center mb-10 animate-spin-slow">
+                      <div className="w-24 h-24 bg-linear-to-br from-indigo-100 to-purple-100 rounded-full inline-flex items-center justify-center mb-10 animate-spin-slow">
                         <SparklesIcon className="w-12 h-12 text-indigo-600" />
                       </div>
                       <h2 className="text-3xl font-bold text-gray-900 mb-4">
@@ -207,7 +207,7 @@ const WorkflowBuilder: React.FC = () => {
                         {[0, 1, 2].map(i => (
                           <div
                             key={i}
-                            className="w-4 h-4 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full animate-pulse"
+                            className="w-4 h-4 bg-linear-to-r from-indigo-500 to-purple-600 rounded-full animate-pulse"
                             style={{ animationDelay: `${i * 0.3}s` }}
                           />
                         ))}
@@ -236,7 +236,7 @@ const WorkflowBuilder: React.FC = () => {
                   {generatedLesson && !isGenerating && (
                     <div className="space-y-12 animate-fade-in">
                       <div className="text-center">
-                        <div className="w-24 h-24 bg-gradient-to-br from-teal-400 to-emerald-500 rounded-full inline-flex items-center justify-center mb-6 shadow-xl ring-4 ring-white">
+                        <div className="w-24 h-24 bg-linear-to-br from-teal-400 to-emerald-500 rounded-full inline-flex items-center justify-center mb-6 shadow-xl ring-4 ring-white">
                           <SparklesIcon className="w-14 h-14 text-white" />
                         </div>
                         <h2 className="text-4xl font-extrabold text-gray-900 mb-3">
@@ -263,7 +263,7 @@ const WorkflowBuilder: React.FC = () => {
                       <div className="text-center pt-6">
                         <button
                           onClick={resetAndStartOver}
-                          className="px-10 py-4 bg-gradient-to-r from-indigo-600 to-purple-700 text-white text-lg font-bold rounded-xl hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 shadow-indigo-500/50"
+                          className="px-10 py-4 bg-linear-to-r from-indigo-600 to-purple-700 text-white text-lg font-bold rounded-xl hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 shadow-indigo-500/50"
                         >
                           <ArrowPathIcon className="w-5 h-5 inline-block mr-2 align-text-bottom" />
                           Create Another Lesson
@@ -275,7 +275,7 @@ const WorkflowBuilder: React.FC = () => {
                   {/* Initial Generate Screen */}
                   {!isGenerating && !generatedLesson && !error && (
                     <div className="text-center py-12">
-                      <div className="w-24 h-24 bg-gradient-to-br from-teal-100 to-green-100 rounded-full inline-flex items-center justify-center mb-10 shadow-lg">
+                      <div className="w-24 h-24 bg-linear-to-br from-teal-100 to-green-100 rounded-full inline-flex items-center justify-center mb-10 shadow-lg">
                         <SparklesIcon className="w-14 h-14 text-teal-600" />
                       </div>
                       <h2 className="text-3xl font-bold text-gray-900 mb-10">
@@ -309,7 +309,7 @@ const WorkflowBuilder: React.FC = () => {
 
                       <button
                         onClick={generateRealLesson}
-                        className="px-16 py-5 bg-gradient-to-r from-teal-500 to-emerald-600 text-white text-xl font-bold rounded-2xl hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 shadow-teal-500/50"
+                        className="px-16 py-5 bg-linear-to-r from-teal-500 to-emerald-600 text-white text-xl font-bold rounded-2xl hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 shadow-teal-500/50"
                       >
                         <SparklesIcon className='w-6 h-6 inline-block mr-2 align-text-bottom' />
                         Generate My Lesson Now
@@ -322,7 +322,7 @@ const WorkflowBuilder: React.FC = () => {
               /* ALL OTHER STEPS — Enhanced UI with professional styling */
               <>
                 <div className="text-center mb-12">
-                  <div className="w-20 h-20 bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl inline-flex items-center justify-center mb-6 shadow-xl ring-4 ring-white">
+                  <div className="w-20 h-20 bg-linear-to-br from-indigo-50 to-purple-50 rounded-2xl inline-flex items-center justify-center mb-6 shadow-xl ring-4 ring-white">
                     <Icon className="w-10 h-10 text-indigo-700" />
                   </div>
                   <h2 className="text-3xl font-extrabold text-gray-900 tracking-tight">
@@ -366,7 +366,7 @@ const WorkflowBuilder: React.FC = () => {
                       <div className="text-center pt-6">
                         <button
                           onClick={() => navigate('/builder/generate')}
-                          className="px-12 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-lg font-bold rounded-xl hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+                          className="px-12 py-4 bg-linear-to-r from-indigo-600 to-purple-600 text-white text-lg font-bold rounded-xl hover:shadow-xl transition-all duration-300 transform hover:scale-105"
                         >
                           Continue <span aria-hidden="true">→</span>
                         </button>
@@ -383,7 +383,7 @@ const WorkflowBuilder: React.FC = () => {
                         <button
                           key={opt.value}
                           onClick={() => select(step as any, opt.value)}
-                          className={`flex flex-col items-center justify-center py-10 px-6 rounded-2xl border-2 text-xl font-bold transition-all duration-200 transform hover:-translate-y-1 shadow-lg ${data[step as keyof WorkflowData] === opt.value ? 'border-indigo-600 bg-gradient-to-br from-indigo-50 to-purple-50 text-indigo-700 shadow-xl ring-2 ring-indigo-300' : 'border-gray-200 hover:border-indigo-300 bg-white shadow-md'}`}
+                          className={`flex flex-col items-center justify-center py-10 px-6 rounded-2xl border-2 text-xl font-bold transition-all duration-200 transform hover:-translate-y-1 shadow-lg ${data[step as keyof WorkflowData] === opt.value ? 'border-indigo-600 bg-linear-to-br from-indigo-50 to-purple-50 text-indigo-700 shadow-xl ring-2 ring-indigo-300' : 'border-gray-200 hover:border-indigo-300 bg-white shadow-md'}`}
                         >
                             {OptIcon && <OptIcon className='w-8 h-8 mb-3 text-indigo-500' />}
                             {opt.label}

@@ -1,11 +1,10 @@
-// client/src/api/apiService.ts
 import axios from 'axios';
 
+/* ==================== AXIOS INSTANCE ==================== */
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL,
   headers: { 'Content-Type': 'application/json' },
 });
-
 
 /* ==================== INTERFACES ==================== */
 export interface Chord {
@@ -110,7 +109,6 @@ export interface PracticeAdviceResult {
   nextGoals?: string[];
 }
 
-// NEW: Lesson Generator
 export interface LessonResult {
   lesson: string;
   title?: string;
@@ -118,12 +116,19 @@ export interface LessonResult {
   goals?: string[];
 }
 
+/* ==================== TYPES ==================== */
+export interface SongArrangementQuery {
+  songQuery: string;
+  [key: string]: unknown ; // optional extra parameters
+}
+
 /* ==================== API METHODS ==================== */
 export const aiApi = {
-  generateSongArrangement: async (query: any): Promise<FullDisplayData> => {
+  generateSongArrangement: async (query: SongArrangementQuery): Promise<FullDisplayData> => {
     try {
       const res = await api.post('/ai/chords', query);
       const data = res.data;
+
       const rawProgression =
         data.progression ||
         data.progressionSummary?.map((c: string) => ({ chord: c, duration: 4 })) ||
@@ -236,5 +241,4 @@ export const generateLyrics = aiApi.generateLyrics;
 export const getPracticeAdvice = aiApi.getPracticeAdvice;
 export const generateLesson = aiApi.generateLesson;
 
-/* ==================== AXIOS INSTANCE ==================== */
 export { api };

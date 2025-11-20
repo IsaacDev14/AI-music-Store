@@ -86,7 +86,7 @@ const ImprovAssistant: React.FC = () => {
               {/* INTRO HERO */}
               {showIntro && (
                  <div className="flex flex-col items-center justify-center min-h-[400px] text-center animate-fade-in w-full">
-                    <div className="w-24 h-24 bg-gradient-to-tr from-blue-50 to-white rounded-full flex items-center justify-center mb-6 border border-blue-100 shadow-inner">
+                    <div className="w-24 h-24 bg-linear-to-tr from-blue-50 to-white rounded-full flex items-center justify-center mb-6 border border-blue-100 shadow-inner">
                        <LightBulbIcon className="w-10 h-10 text-blue-500" />
                     </div>
                     <h2 className="text-2xl font-bold text-gray-900 mb-2">Stuck in a rut?</h2>
@@ -101,7 +101,7 @@ const ImprovAssistant: React.FC = () => {
                              onClick={() => handleQuickPrompt(s.label)}
                              className="flex items-center gap-3 p-4 bg-white border border-gray-200 rounded-xl hover:border-blue-300 hover:shadow-md transition-all text-left group min-w-0"
                           >
-                             <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${s.color} group-hover:scale-110 transition-transform flex-shrink-0`}>
+                             <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${s.color} group-hover:scale-110 transition-transform shrink-0`}>
                                 <s.icon className="w-5 h-5" />
                              </div>
                              <span className="text-sm font-bold text-gray-700 group-hover:text-blue-600 truncate">{s.label}</span>
@@ -117,14 +117,14 @@ const ImprovAssistant: React.FC = () => {
                     {/* USER MESSAGE */}
                     <div className="flex justify-end w-full">
                        <div className="bg-blue-600 text-white px-6 py-4 rounded-2xl rounded-tr-none shadow-lg max-w-[85%] lg:max-w-[70%] animate-fade-in min-w-0">
-                          <p className="font-medium break-words">{lastQuery}</p>
+                          <p className="font-medium wrap-break-words">{lastQuery}</p>
                        </div>
                     </div>
 
                     {/* AI RESPONSE */}
                     {(loading || response) && (
                        <div className="flex gap-4 animate-fade-in w-full min-w-0">
-                          <div className="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center flex-shrink-0 shadow-sm">
+                          <div className="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center shrink-0 shadow-sm">
                              {loading ? (
                                 <ArrowPathIcon className="w-5 h-5 text-blue-600 animate-spin" />
                              ) : (
@@ -141,7 +141,7 @@ const ImprovAssistant: React.FC = () => {
                                 </div>
                              ) : (
                                 <div className="prose prose-blue max-w-none min-w-0">
-                                   <div className="whitespace-pre-wrap text-gray-700 leading-relaxed break-words">
+                                   <div className="whitespace-pre-wrap text-gray-700 leading-relaxed wrap-break-words">
                                       {response.split('\n').map((line, i) => {
                                          // Simple formatting for bold/headers
                                          if (line.trim().startsWith('1.') || line.trim().startsWith('2.') || line.trim().startsWith('3.') || line.trim().endsWith(':')) {

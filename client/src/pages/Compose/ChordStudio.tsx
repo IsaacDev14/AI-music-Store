@@ -376,7 +376,7 @@ const ChordStudio: React.FC = () => {
     });
   };
 
-  const currentData = activeTab === 'search' ? songResult : composeResult;
+//   const currentData = activeTab === 'search' ? songResult : composeResult;
 
   return (
     <div className="min-h-screen w-full flex flex-col bg-gray-50 overflow-hidden">
