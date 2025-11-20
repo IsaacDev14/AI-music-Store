@@ -1,5 +1,4 @@
 // client/src/pages/Learn/SkillLevel.tsx
-import React from 'react';
 import { ChartBarIcon } from '@heroicons/react/24/outline';
 
 const SkillLevel = () => {

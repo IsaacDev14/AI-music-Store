@@ -8,7 +8,6 @@ import { NAVIGATION_PATHS } from './utils/constants';
 // Import other pages
 import TunerPage from './pages/Tools/TunerPage';
 import ChordStudio from './pages/Compose/ChordStudio';
-import MelodyStudio from './pages/Compose/MelodyStudio';
 import Metronome from './pages/Tools/Metronome';
 import BackingTrack from './pages/Tools/BackingTrack';
 import RhythmTrainer from './pages/Tools/RhythmTrainer';

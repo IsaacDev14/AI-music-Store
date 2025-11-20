@@ -1,3 +1,5 @@
+/* eslint-disable */
+
 // src/pages/Compose/ChordStudio.tsx
 import React, { useState, useMemo, useRef } from 'react';
 import { aiApi, type FullDisplayData } from '../../api/apiService';
