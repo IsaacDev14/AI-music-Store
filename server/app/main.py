@@ -9,6 +9,8 @@ origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "http://localhost:5174",
+    "https://ai-music-store.onrender.com",
+    "https://ai-music-store.onrender.com/"
 ]
 
 app.add_middleware(
